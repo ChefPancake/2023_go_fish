@@ -21,18 +21,21 @@ fn main() {
         LogDiagnosticsPlugin::default(),
         FrameTimeDiagnosticsPlugin::default()))
     .add_systems(Startup, (
-        add_camera, 
+        add_camera,
         add_fish,
         add_hook))
     .add_systems(Update, (
         bevy::window::close_on_esc,
-        move_hook,
-        turn_hook_pink,
-        catch_fish,
+        fish_bite_hook,
         apply_fish_movement,
         apply_velocity,
         apply_fish_boundaries,
-        apply_fish_animation))
+        apply_fish_animation,
+        move_hook,
+        turn_hook_pink,
+    ))
+    .add_systems(Update,
+        catch_fish)
     .run();
 }
 
@@ -50,6 +53,12 @@ pub struct FishMovement {
 pub struct Hook {
     pub move_speed: f32
 }
+
+#[derive(Component)]
+pub struct NearFish;
+
+#[derive(Component)]
+pub struct Hooked;
 
 #[derive(Component)]
 pub struct Velocity {
@@ -102,7 +111,7 @@ fn add_fish(
                 ..default()
             },
             FishMouthPosition {
-                offset_x: -80.0,
+                offset_x: -60.0,
                 offset_y: 20.0
             },
             FishMovement {
@@ -132,26 +141,13 @@ fn add_fish(
 }
 
 fn turn_hook_pink(
-    mut hook_query: Query<(&mut Sprite, &Transform), With<Hook>>,
-    fish_query: Query<(&Transform, &FishMouthPosition)>,
+    mut hooks: Query<(&mut Sprite, Option<&NearFish>), With<Hook>>
 ) {
-    for (mut hook, hook_pos) in &mut hook_query {
-        let mut fish_near_hook = false;
-        for (fish_pos, mouth_pos) in &fish_query {
-            let distance = get_distance_to_fish_mouth(
-                &hook_pos.translation,
-                &fish_pos.translation,
-                fish_pos.scale.x,
-                mouth_pos);
-            if distance < 30.0 {
-                fish_near_hook = true;
-                break;
-            }
-        }
-        if fish_near_hook {
-            hook.color = Color::PINK;
+    for (mut hook_sprite, near_fish) in &mut hooks {
+        if near_fish.is_some() {
+            hook_sprite.color = Color::PINK;
         } else {
-            hook.color = Color::WHITE;
+            hook_sprite.color = Color::WHITE;
         }
     }
 }
@@ -178,7 +174,7 @@ fn add_hook(
 }
 
 fn move_hook(
-    mut query: Query<(&mut Transform, &Hook)>,
+    mut query: Query<(&mut Transform, &Hook), Without<NearFish>>,
     input: Res<Input<KeyCode>>,
     time: Res<Time>
 ) {
@@ -195,25 +191,42 @@ fn move_hook(
     }
 }
 
+fn fish_bite_hook(
+    fish_query: Query<(Entity, &Transform, &FishMouthPosition)>,
+    hook_query: Query<(Entity, &Transform), With<Hook>>,
+    mut commands: Commands
+) {
+    for (hook_entity, hook) in &hook_query {
+        let mut is_near_fish = false;
+        for (fish_entity, fish, mouth_pos) in &fish_query {
+            let distance = get_distance_to_fish_mouth(
+                &hook.translation,
+                &fish.translation,
+                fish.scale.x,
+                mouth_pos);
+            if distance < 30.0 {
+                is_near_fish = true;
+                commands.entity(fish_entity).insert(Hooked);
+            } else {
+                commands.entity(fish_entity).remove::<Hooked>();
+            }
+        }
+        if is_near_fish {
+            commands.entity(hook_entity).insert(NearFish);
+        } else {
+            commands.entity(hook_entity).remove::<NearFish>();
+        }
+    }
+}
+
 fn catch_fish(
     mut commands: Commands,
     input: Res<Input<KeyCode>>,
-    fish_query: Query<(Entity, &Transform, &FishMouthPosition)>,
-    hook_query: Query<&Transform, With<Hook>>
+    fish_query: Query<Entity, With<Hooked>>,
 ) {
     if input.just_pressed(KeyCode::Space) {   
-        for hook in &hook_query {
-            for (entity, fish, mouth_pos) in &fish_query {
-                let distance = get_distance_to_fish_mouth(
-                    &hook.translation,
-                    &fish.translation,
-                    fish.scale.x,
-                    mouth_pos);
-                if distance < 30.0 {
-                    commands.entity(entity).despawn();
-                    break;
-                }
-            }
+        for entity in &fish_query {
+            commands.entity(entity).despawn();
         }
     }
 }
@@ -230,7 +243,7 @@ fn get_distance_to_fish_mouth(from: &Vec3, fish_pos: &Vec3, fish_scale_x: f32, f
 }
 
 fn apply_fish_movement(
-    mut query: Query<(&mut Velocity, &mut FishMovement)>,
+    mut query: Query<(&mut Velocity, &mut FishMovement), Without<Hooked>>,
     time: Res<Time>
 ) {
     for (mut velocity, mut movement) in &mut query {
@@ -242,7 +255,7 @@ fn apply_fish_movement(
 }
 
 fn apply_fish_animation(
-    mut query: Query<(&FishAnimation, &FishMovement, &mut Transform)>,
+    mut query: Query<(&FishAnimation, &FishMovement, &mut Transform), Without<Hooked>>,
 ) {
     for (anim, movement, mut transform) in &mut query {
         #[derive(PartialEq, Eq)]
@@ -346,7 +359,7 @@ fn apply_fish_boundaries(
 }
 
 fn apply_velocity(
-    mut query: Query<(&mut Transform, &mut Velocity)>,
+    mut query: Query<(&mut Transform, &mut Velocity), Without<Hooked>>,
     time: Res<Time>
 ) {
     for (mut transform, mut velocity) in &mut query {

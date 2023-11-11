@@ -5,14 +5,14 @@ TODO:
   - [x] stretch and squash based on movement
   - [x] randomized burst lengths
   - [ ] spawn fish in lanes w slight variation
-- [ ] Spawn multiple sizes of fish
-  - [ ] Larger fish in the background
-- [ ] click a fish to catch
+- [ ] catch fish
   - [x] create hook, player moves it with wasd
   - [ ] on spacebar, remove one fish under hook
-    - [ ] adjust catch point to be at mouth
+    - [x] adjust catch point to be at mouth
     - [ ] when in range, freeze the fish and the hook
     - [ ] when space is pressed, remove the fish and unfreeze the hook
   - [ ] then animate it flopping up to the catch area
   - [ ] sit it on a stack
+- [ ] Spawn multiple sizes of fish
+  - [ ] Larger fish in the background
 
