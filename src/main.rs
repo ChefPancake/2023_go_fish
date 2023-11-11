@@ -10,6 +10,7 @@ const BACKGROUND_COLOR: Color = Color::rgb(0.1, 0.1, 0.1);
 fn main() {
     App::new()
     .insert_resource(ClearColor(BACKGROUND_COLOR))
+    .insert_resource(ImageHandles::default())
     .add_plugins((
         DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
@@ -20,6 +21,7 @@ fn main() {
         }), 
         LogDiagnosticsPlugin::default(),
         FrameTimeDiagnosticsPlugin::default()))
+    .add_systems(Startup, load_images)
     .add_systems(Startup, (
         add_camera,
         add_fish,
@@ -33,14 +35,30 @@ fn main() {
         apply_fish_animation,
         move_hook,
         turn_hook_pink,
-    ))
+    ).before(catch_fish))
     .add_systems(Update,
         catch_fish)
+    .add_systems(Update, 
+        reset_level.after(catch_fish))
     .run();
 }
 
 fn add_camera(mut commands: Commands) {
     commands.spawn(Camera2dBundle::default());
+}
+
+fn load_images(
+    mut images: ResMut<ImageHandles>,
+    asset_server: Res<AssetServer>
+) {
+    images.fish_handle = Some(asset_server.load("fish.png"));
+    images.hook_handle = Some(asset_server.load("hook.png"));
+}
+
+#[derive(Resource, Default)]
+pub struct ImageHandles {
+    pub fish_handle: Option<Handle<Image>>,
+    pub hook_handle: Option<Handle<Image>>
 }
 
 #[derive(Component)]
@@ -90,11 +108,21 @@ pub struct FishMouthPosition {
     pub offset_y: f32,
 }
 
-fn add_fish(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>
+fn reset_level(
+    fish_query: Query<(), With<FishMovement>>,
+    images: Res<ImageHandles>,
+    commands: Commands,
 ) {
-    for _ in 0..10 {
+    if fish_query.is_empty() {
+        add_fish(images, commands);
+    }
+}
+fn add_fish(
+    images: Res<ImageHandles>,
+    mut commands: Commands,
+) {
+    let fish_handle = images.fish_handle.as_ref().expect("image should be loaded");
+    for _ in 0..3 {
         let mut rng = rand::thread_rng();
         let pos_x = rng.gen::<f32>() * 1000.0 - 500.0;
         let pos_y = rng.gen::<f32>() * 500.0 - 250.0;
@@ -102,7 +130,7 @@ fn add_fish(
         timer.tick(Duration::from_secs_f32(rng.gen::<f32>() * 6.0));
         commands.spawn((
             SpriteBundle {
-                texture: asset_server.load("fish.png"),
+                texture: fish_handle.clone(),
                 transform: Transform::from_translation(
                     Vec3::new(
                         pos_x, 
@@ -224,7 +252,7 @@ fn catch_fish(
     input: Res<Input<KeyCode>>,
     fish_query: Query<Entity, With<Hooked>>,
 ) {
-    if input.just_pressed(KeyCode::Space) {   
+    if input.just_pressed(KeyCode::Space) {
         for entity in &fish_query {
             commands.entity(entity).despawn();
         }
