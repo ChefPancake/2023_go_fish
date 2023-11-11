@@ -11,12 +11,24 @@ fn main() {
     App::new()
     .insert_resource(ClearColor(BACKGROUND_COLOR))
     .add_plugins((
-        DefaultPlugins, 
+        DefaultPlugins.set(WindowPlugin {
+            primary_window: Some(Window {
+                title: "GO FISH".to_string(),
+                ..default()
+            }),
+            ..default()
+        }), 
         LogDiagnosticsPlugin::default(),
         FrameTimeDiagnosticsPlugin::default()))
-    .add_systems(Startup, (add_camera, add_fish))
+    .add_systems(Startup, (
+        add_camera, 
+        add_fish,
+        add_hook))
     .add_systems(Update, (
         bevy::window::close_on_esc,
+        move_hook,
+        turn_hook_pink,
+        catch_fish,
         apply_fish_movement,
         apply_velocity,
         apply_fish_boundaries,
@@ -32,6 +44,11 @@ fn add_camera(mut commands: Commands) {
 pub struct FishMovement {
     pub next_move_time: Timer,
     pub vel_to_apply: f32
+}
+
+#[derive(Component)]
+pub struct Hook {
+    pub move_speed: f32
 }
 
 #[derive(Component)]
@@ -58,17 +75,22 @@ pub struct FishAnimation {
     pub reset_anim_time_s: f32,
 }
 
+#[derive(Component)]
+pub struct FishMouthPosition {
+    pub offset_x: f32,
+    pub offset_y: f32,
+}
+
 fn add_fish(
     mut commands: Commands,
-    asset_server: Res<AssetServer>,
+    asset_server: Res<AssetServer>
 ) {
     for _ in 0..10 {
-        //TODO K: apply direction randomly to both movement and transform.scale
         let mut rng = rand::thread_rng();
         let pos_x = rng.gen::<f32>() * 1000.0 - 500.0;
         let pos_y = rng.gen::<f32>() * 500.0 - 250.0;
-        let mut timer = Timer::from_seconds(rng.gen::<f32>() * 2.0 + 2.0, TimerMode::Repeating);
-        timer.tick(Duration::from_secs_f32(rng.gen::<f32>() * 2.0));
+        let mut timer = Timer::from_seconds(rng.gen::<f32>() * 3.0 + 6.0, TimerMode::Repeating);
+        timer.tick(Duration::from_secs_f32(rng.gen::<f32>() * 6.0));
         commands.spawn((
             SpriteBundle {
                 texture: asset_server.load("fish.png"),
@@ -79,9 +101,13 @@ fn add_fish(
                         0.0)),
                 ..default()
             },
+            FishMouthPosition {
+                offset_x: -80.0,
+                offset_y: 20.0
+            },
             FishMovement {
                 next_move_time: timer,
-                vel_to_apply: -400.0
+                vel_to_apply: -250.0
             },
             FishBoundaries {
                 min_x: -500.0,
@@ -92,17 +118,115 @@ fn add_fish(
                 max_scale_add_x: 0.3,
                 max_scale_add_y: 0.3,
                 charge_anim_time_s: 0.3,
-                dash_anim_time_s: 0.15,
-                reset_anim_time_s: 1.0,
+                dash_anim_time_s: 0.2,
+                reset_anim_time_s: 2.0,
             },
             Velocity {
                 x: 0.0,
                 y: 0.0,
-                drag_x: 150.0,
+                drag_x: 25.0,
                 drag_y: 1000.0
             }
         ));
     }
+}
+
+fn turn_hook_pink(
+    mut hook_query: Query<(&mut Sprite, &Transform), With<Hook>>,
+    fish_query: Query<(&Transform, &FishMouthPosition)>,
+) {
+    for (mut hook, hook_pos) in &mut hook_query {
+        let mut fish_near_hook = false;
+        for (fish_pos, mouth_pos) in &fish_query {
+            let distance = get_distance_to_fish_mouth(
+                &hook_pos.translation,
+                &fish_pos.translation,
+                fish_pos.scale.x,
+                mouth_pos);
+            if distance < 30.0 {
+                fish_near_hook = true;
+                break;
+            }
+        }
+        if fish_near_hook {
+            hook.color = Color::PINK;
+        } else {
+            hook.color = Color::WHITE;
+        }
+    }
+}
+
+fn add_hook(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>
+) {
+    commands.spawn((
+        SpriteBundle {
+            texture: asset_server.load("hook.png"),
+            transform: 
+                Transform { 
+                    translation: Vec3::new(0.0, 0.0, 0.0),
+                    scale: Vec3::new(2.0, 2.0, 1.0),
+                    ..default()
+                },
+            ..default()
+        },
+        Hook {
+            move_speed: 300.0
+        }
+    ));
+}
+
+fn move_hook(
+    mut query: Query<(&mut Transform, &Hook)>,
+    input: Res<Input<KeyCode>>,
+    time: Res<Time>
+) {
+    let left_pressed = input.pressed(KeyCode::A) || input.pressed(KeyCode::Left);
+    let right_pressed = input.pressed(KeyCode::D) || input.pressed(KeyCode::Right);
+    let up_pressed = input.pressed(KeyCode::W) || input.pressed(KeyCode::Up);
+    let down_pressed = input.pressed(KeyCode::S) || input.pressed(KeyCode::Down);
+    let x_vel = (if left_pressed { -1.0 } else { 0.0 } + if right_pressed { 1.0 } else { 0.0 });
+    let y_vel = (if up_pressed { 1.0 } else { 0.0 } + if down_pressed { -1.0 } else { 0.0 });
+    let vel_vec = Vec3::new(x_vel, y_vel, 0.0).normalize_or_zero() * time.delta_seconds();
+    
+    for (mut transform, hook) in &mut query {
+        transform.translation += vel_vec * hook.move_speed;
+    }
+}
+
+fn catch_fish(
+    mut commands: Commands,
+    input: Res<Input<KeyCode>>,
+    fish_query: Query<(Entity, &Transform, &FishMouthPosition)>,
+    hook_query: Query<&Transform, With<Hook>>
+) {
+    if input.just_pressed(KeyCode::Space) {   
+        for hook in &hook_query {
+            for (entity, fish, mouth_pos) in &fish_query {
+                let distance = get_distance_to_fish_mouth(
+                    &hook.translation,
+                    &fish.translation,
+                    fish.scale.x,
+                    mouth_pos);
+                if distance < 30.0 {
+                    commands.entity(entity).despawn();
+                    break;
+                }
+            }
+        }
+    }
+}
+
+fn get_distance_to_fish_mouth(from: &Vec3, fish_pos: &Vec3, fish_scale_x: f32, fish_mouth: &FishMouthPosition) -> f32 {
+    let mouth_offset_x = 
+        if fish_scale_x < 0.0 {
+            fish_mouth.offset_x
+        } else {
+            -fish_mouth.offset_x
+        };
+    let rel_mouth_pos = Vec3::new(mouth_offset_x, fish_mouth.offset_y, 0.0);
+    (*from + rel_mouth_pos - *fish_pos).length()
 }
 
 fn apply_fish_movement(
@@ -279,9 +403,3 @@ fn apply_vel_with_drag(pos: &mut f32, vel: &mut f32, drag: f32, delta_s: f32) {
     *pos += pos_traveled;
     *vel = new_vel;
 }
-
-
-
-
-
-
