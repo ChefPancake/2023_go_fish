@@ -50,7 +50,12 @@ pub struct FishBoundaries {
 
 #[derive(Component)]
 pub struct FishAnimation {
-    pub base_scale: f32
+    pub base_scale: f32,
+    pub max_scale_add_x: f32,
+    pub max_scale_add_y: f32,
+    pub charge_anim_time_s: f32,
+    pub dash_anim_time_s: f32,
+    pub reset_anim_time_s: f32,
 }
 
 fn add_fish(
@@ -83,7 +88,12 @@ fn add_fish(
                 max_x: 500.0
             },
             FishAnimation {
-                base_scale: 1.0
+                base_scale: 1.0,
+                max_scale_add_x: 0.3,
+                max_scale_add_y: 0.3,
+                charge_anim_time_s: 0.3,
+                dash_anim_time_s: 0.15,
+                reset_anim_time_s: 1.0,
             },
             Velocity {
                 x: 0.0,
@@ -108,9 +118,9 @@ fn apply_fish_movement(
 }
 
 fn apply_fish_animation(
-    mut query: Query<(&mut FishAnimation, &FishMovement, &mut Transform)>,
+    mut query: Query<(&FishAnimation, &FishMovement, &mut Transform)>,
 ) {
-    for (mut anim, movement, mut transform) in &mut query {
+    for (anim, movement, mut transform) in &mut query {
         #[derive(PartialEq, Eq)]
         enum Facing {
             Left,
@@ -126,49 +136,52 @@ fn apply_fish_animation(
 
         //right before going off, squish it
         //right after going off, stretch it
-        let perc_left = movement.next_move_time.percent_left();
-        let perc = movement.next_move_time.percent(); 
+        //after stretching, relax it
+        let time = movement.next_move_time.elapsed();
+        let time_left = movement.next_move_time.duration() - time;
+        let time_s = time.as_secs_f32();
+        let time_left_s = time_left.as_secs_f32();
+        
         let base = anim.base_scale;
-        if perc_left < 0.15 {
-            let anim_perc = 1.0 - (perc_left / 0.15);
+        if time_left_s < anim.charge_anim_time_s {
+            let anim_perc = 1.0 - (time_left_s / anim.charge_anim_time_s);
             let anim_perc = anim_perc.powf(0.25);
             if facing == Facing::Right {
                 transform.scale = Vec3::new(
-                    -base + anim_perc * 0.3, 
-                    base + anim_perc * 0.3, 
+                    -base + anim_perc * anim.max_scale_add_x, 
+                    base + anim_perc * anim.max_scale_add_y, 
                     1.0)
             } else {
                 transform.scale = Vec3::new(
-                    base - anim_perc * 0.3, 
-                    base + anim_perc * 0.3, 
+                    base - anim_perc * anim.max_scale_add_x, 
+                    base + anim_perc * anim.max_scale_add_y, 
                     1.0)
             }
-        } else if perc < 0.05 {
-            let anim_perc = perc / 0.05;
-            //let anim_perc = anim_perc.powf(0.25);
+        } else if time_s < anim.dash_anim_time_s {
+            let anim_perc = time_s / anim.dash_anim_time_s;
             if facing == Facing::Right {
                 transform.scale = Vec3::new(
-                    -base + 0.3 - anim_perc * 0.6, 
-                    base + 0.3 - anim_perc * 0.6, 
+                    -base + anim.max_scale_add_x - anim_perc * 2.0 * anim.max_scale_add_x, 
+                    base + anim.max_scale_add_y - anim_perc * 2.0 * anim.max_scale_add_y, 
                     1.0)
             } else {
                 transform.scale = Vec3::new(
-                    base - 0.3 + anim_perc * 0.6, 
-                    base + 0.3 - anim_perc * 0.6, 
+                    base - anim.max_scale_add_x + anim_perc * 2.0 * anim.max_scale_add_x, 
+                    base + anim.max_scale_add_y - anim_perc * 2.0 * anim.max_scale_add_y, 
                     1.0)
             }
-        } else if perc < 0.40 {
-            let anim_perc = perc / 0.40;
-            let anim_perc = anim_perc.powf(0.25);
+        } else if time_s < anim.reset_anim_time_s {
+            let anim_perc = time_s / anim.reset_anim_time_s;
+            let anim_perc = anim_perc.powf(0.5);
             if facing == Facing::Right {
                 transform.scale = Vec3::new(
-                    -base - 0.3 + anim_perc * 0.3, 
-                    base - 0.3 + anim_perc * 0.3, 
+                    -base - anim.max_scale_add_x + anim_perc * anim.max_scale_add_x, 
+                    base - anim.max_scale_add_y + anim_perc * anim.max_scale_add_y, 
                     1.0)
             } else {
                 transform.scale = Vec3::new(
-                    base + 0.3 - anim_perc * 0.3, 
-                    base - 0.3 + anim_perc * 0.3, 
+                    base + anim.max_scale_add_x - anim_perc * anim.max_scale_add_x, 
+                    base - anim.max_scale_add_y + anim_perc * anim.max_scale_add_y, 
                     1.0)
             }
         } else {

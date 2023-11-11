@@ -2,7 +2,7 @@ TODO:
 - [ ] Animate fish
   - [x] movement in short bursts
   - [x] staying in certain zone
-  - [ ] stretch and squash based on movement
+  - [x] stretch and squash based on movement
   - [ ] randomized burst lengths
 - [ ] Spawn multiple sizes of fish
   - [ ] Larger fish in the background
