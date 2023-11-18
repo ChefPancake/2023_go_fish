@@ -2,6 +2,8 @@ use std::time::Duration;
 
 use bevy::diagnostic::{LogDiagnosticsPlugin, FrameTimeDiagnosticsPlugin};
 use bevy::prelude::*;
+use bevy::sprite::MaterialMesh2dBundle;
+use bevy::window::WindowResolution;
 use bevy::{app::App, DefaultPlugins, time::Time};
 use rand::prelude::*;
 
@@ -15,19 +17,24 @@ fn main() {
         DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 title: "GO FISH".to_string(),
+                resolution: WindowResolution::new(800.0, 800.0).with_scale_factor_override(0.4),
                 ..default()
             }),
             ..default()
         }), 
         LogDiagnosticsPlugin::default(),
         FrameTimeDiagnosticsPlugin::default()))
-    .add_systems(Startup, load_images)
+    .add_systems(Startup, 
+        load_images)
     .add_systems(Startup, (
         add_camera,
         add_fish,
-        add_hook))
+        add_hook,
+        add_catch_stack)
+        .after(load_images))
     .add_systems(Update, (
         bevy::window::close_on_esc,
+        interpolate_flying_arc,
         fish_bite_hook,
         apply_fish_movement,
         apply_velocity,
@@ -78,6 +85,16 @@ pub struct NearFish;
 #[derive(Component)]
 pub struct Hooked;
 
+#[derive(Component, Debug)]
+pub struct Flying {
+    pub start_vel: Vec2,
+    pub gravity: f32,
+    pub start_pos: Vec2,
+    pub end_pos: Vec2,
+    pub start_time_s: f32,
+    pub end_time_s: f32
+}
+
 #[derive(Component)]
 pub struct Velocity {
     pub x: f32,
@@ -108,6 +125,9 @@ pub struct FishMouthPosition {
     pub offset_y: f32,
 }
 
+#[derive(Component)]
+pub struct CatchStack;
+
 fn reset_level(
     fish_query: Query<(), With<FishMovement>>,
     images: Res<ImageHandles>,
@@ -117,12 +137,29 @@ fn reset_level(
         add_fish(images, commands);
     }
 }
+
+fn add_catch_stack(
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    mut commands: Commands
+){
+    commands.spawn(
+        (MaterialMesh2dBundle {
+            mesh: meshes.add(shape::Quad::new(Vec2::new(300.0, 100.0)).into()).into(),
+            material: materials.add(ColorMaterial::from(Color::ORANGE_RED)),
+            transform: Transform::from_translation(Vec3::new(500.0, 300.0, -1.0)),
+            ..default()
+        },
+        CatchStack)
+    );
+}
+
 fn add_fish(
     images: Res<ImageHandles>,
     mut commands: Commands,
 ) {
     let fish_handle = images.fish_handle.as_ref().expect("image should be loaded");
-    for _ in 0..3 {
+    for _ in 0..10 {
         let mut rng = rand::thread_rng();
         let pos_x = rng.gen::<f32>() * 1000.0 - 500.0;
         let pos_y = rng.gen::<f32>() * 500.0 - 250.0;
@@ -166,6 +203,31 @@ fn add_fish(
             }
         ));
     }
+}
+
+fn calculate_time_and_initial_vel_for_arc(
+    start_x: f32,
+    start_y: f32,
+    end_x: f32,
+    end_y: f32,
+    gravity_y: f32,
+    max_y: f32,
+) -> (Vec2, f32) {
+    debug_assert!(start_y < max_y);
+    debug_assert!(end_y < max_y);
+    debug_assert_ne!(0.0, gravity_y);
+
+    //calculate these times as trajectory functions originating from the apex
+    //their sum is the total arc time, from which we can derive start vels
+
+    let time_to_apex = (2.0 / gravity_y * (max_y - start_y)).sqrt();
+    let time_from_apex = (2.0 / gravity_y * (max_y - end_y)).sqrt();
+    let total_time = time_to_apex + time_from_apex;
+
+    let vel_x = (end_x - start_x) / total_time;
+    let vel_y = gravity_y * time_to_apex;
+
+    return (Vec2::new(vel_x, vel_y), total_time);
 }
 
 fn turn_hook_pink(
@@ -250,16 +312,54 @@ fn fish_bite_hook(
 fn catch_fish(
     mut commands: Commands,
     input: Res<Input<KeyCode>>,
-    fish_query: Query<Entity, With<Hooked>>,
+    time: Res<Time>,
+    fish_query: Query<(Entity, &Transform), With<Hooked>>,
+    catch_stack: Query<&Transform, With<CatchStack>>,
 ) {
+    let gravity = 10000.0;
+    let catch_stack_pos = catch_stack.single().translation;
     if input.just_pressed(KeyCode::Space) {
-        for entity in &fish_query {
-            commands.entity(entity).despawn();
+        for (entity, &fish_pos) in &fish_query {
+            commands.entity(entity).remove::<(Hooked, FishMovement, FishMouthPosition, Velocity)>();
+            let fish_pos = fish_pos.translation;
+            let (arc_vel, arc_time) = calculate_time_and_initial_vel_for_arc(fish_pos.x, fish_pos.y, catch_stack_pos.x, catch_stack_pos.y, gravity, 800.0);
+            let flying = Flying {
+                start_vel: arc_vel,
+                gravity: gravity,
+                start_pos: Vec2::new(fish_pos.x, fish_pos.y),
+                end_pos: Vec2::new(catch_stack_pos.x, catch_stack_pos.y),
+                start_time_s: time.elapsed_seconds(),
+                end_time_s: time.elapsed_seconds() + arc_time,
+            };
+            commands.entity(entity).insert(flying);
         }
     }
 }
 
-fn get_distance_to_fish_mouth(from: &Vec3, fish_pos: &Vec3, fish_scale_x: f32, fish_mouth: &FishMouthPosition) -> f32 {
+fn interpolate_flying_arc(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut flying_query: Query<(Entity, &mut Transform, &Flying)>
+) {
+    for (entity, mut transform, flying) in &mut flying_query {
+        if time.elapsed_seconds() > flying.end_time_s {
+            commands.entity(entity).remove::<Flying>();
+            transform.translation = Vec3::new(flying.end_pos.x, flying.end_pos.y, 0.0);
+        } else {
+            let elapsed = time.elapsed_seconds() - flying.start_time_s;
+            let new_pos_x = flying.start_pos.x + (elapsed * flying.start_vel.x);
+            let new_pos_y = flying.start_pos.y + (elapsed * flying.start_vel.y) - (flying.gravity * elapsed * elapsed / 2.0 );
+            transform.translation = Vec3::new(new_pos_x, new_pos_y, 0.0);
+        }
+    }
+}
+
+fn get_distance_to_fish_mouth(
+    from: &Vec3, 
+    fish_pos: &Vec3, 
+    fish_scale_x: f32, 
+    fish_mouth: &FishMouthPosition
+) -> f32 {
     let mouth_offset_x = 
         if fish_scale_x < 0.0 {
             fish_mouth.offset_x

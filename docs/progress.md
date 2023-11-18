@@ -7,11 +7,12 @@ TODO:
   - [ ] spawn fish in lanes w slight variation
 - [ ] catch fish
   - [x] create hook, player moves it with wasd
-  - [ ] on spacebar, remove one fish under hook
+  - [x] on spacebar, remove one fish under hook
     - [x] adjust catch point to be at mouth
-    - [ ] when in range, freeze the fish and the hook
-    - [ ] when space is pressed, remove the fish and unfreeze the hook
-  - [ ] then animate it flopping up to the catch area
+    - [x] when in range, freeze the fish and the hook
+    - [x] when space is pressed, remove the fish and unfreeze the hook
+  - [ ] instead of removing, arc it up to catch area
+  - [ ] then animate it flopping whn caught
   - [ ] sit it on a stack
 - [ ] Spawn multiple sizes of fish
   - [ ] Larger fish in the background
