@@ -14,6 +14,7 @@ const GRAVITY: f32 = 6000.0;
 const LINE_START_POS: Vec2 = Vec2::new(600.0, 600.0);
 const FISH_STACK_HEIGHT: f32 = 30.0;
 const STACK_POS: Vec3 = Vec3::new(1200.0, 300.0, -1.0);
+const FISH_PER_LEVEL: usize = 5;
 
 fn main() {
     App::new()
@@ -190,12 +191,14 @@ fn add_fish(
     mut commands: Commands,
 ) {
     let fish_handle = images.fish_handle.as_ref().expect("image should be loaded");
-    for _ in 0..10 {
-        let mut rng = rand::thread_rng();
-        let box_width = WATER_SIZE.x * 0.9;
-        let box_height = WATER_SIZE.y * 0.9;
+    let box_width = WATER_SIZE.x * 0.9;
+    let box_height = WATER_SIZE.y * 0.9;
+    let lane_height = box_height / FISH_PER_LEVEL as f32;
+    println!("total height: {}; lane height: {}", box_height, lane_height);
+    let mut rng = rand::thread_rng();
+    for index in 0..FISH_PER_LEVEL {
         let pos_x = rng.gen::<f32>() * box_width - (box_width / 2.0) + WATER_POS.x;
-        let pos_y = rng.gen::<f32>() * box_height - (box_height / 2.0) + WATER_POS.y;
+        let pos_y = WATER_POS.y  - box_height / 2.0 + lane_height * index as f32 + rng.gen::<f32>() * lane_height * 0.8;
         let mut timer = Timer::from_seconds(rng.gen::<f32>() * 6.0 + 3.0, TimerMode::Repeating);
         timer.tick(Duration::from_secs_f32(rng.gen::<f32>() * 9.0));
         commands.spawn((
@@ -244,7 +247,7 @@ fn draw_fishing_line(
 ) {
     if let Ok(hook_pos) = hook_query.get_single() {
         let hook_pos = hook_pos.translation;
-        let visual_surface_y = WATER_SIZE.y * 1.1 / 2.0;
+        let visual_surface_y = WATER_POS.y + WATER_SIZE.y * 1.1 / 2.0;
         let distance_to_hook_x = LINE_START_POS.x - hook_pos.x;
         let distance_to_surface_y = LINE_START_POS.y - visual_surface_y;
 
@@ -420,18 +423,24 @@ fn catch_fish(
     input: Res<Input<KeyCode>>,
     time: Res<Time>,
     fish_query: Query<(Entity, &Hooked, &Transform)>,
-    catch_stack: Query<&Transform, With<CatchStack>>,
+    mut catch_stack: Query<(&Transform, &mut CatchStack)>,
     hook_query: Query<Entity, (With<Hook>, With<NearFish>)>,
 ) {
     let critical_time = 0.07;
-    let catch_stack_pos = catch_stack.single().translation;
     if let Ok(hook_entity) = hook_query.get_single() {
         if input.just_pressed(KeyCode::Space) {
             commands.entity(hook_entity).remove::<NearFish>();
+            let (catch_stack_pos, mut catch_stack) = catch_stack.single_mut();
             for (entity, hooked, fish_pos) in &fish_query {
                 commands.entity(entity).remove::<(Hooked, FishMovement, FishMouthPosition, Velocity)>();
                 let react_time = time.elapsed_seconds() - hooked.hook_time_s;
                 if react_time < critical_time {
+                    catch_stack.total_fish += 1;
+                    let catch_stack_pos = catch_stack_pos.translation;
+                    let catch_stack_pos = Vec3::new(
+                        catch_stack_pos.x, 
+                        catch_stack_pos.y + (catch_stack.total_fish as f32) * FISH_STACK_HEIGHT,
+                        catch_stack_pos.z);
                     send_fish_to_stack(fish_pos.translation, catch_stack_pos, GRAVITY, time.elapsed_seconds(), &mut commands, entity)
                 } else {
                     commands.entity(entity).insert(Reeling);

@@ -4,7 +4,7 @@ TODO:
   - [x] staying in certain zone
   - [x] stretch and squash based on movement
   - [x] randomized burst lengths
-  - [ ] spawn fish in lanes w slight variation
+  - [x] spawn fish in lanes w slight variation
 - [ ] catch fish
   - [x] create hook, player moves it with wasd
   - [x] on spacebar, remove one fish under hook
@@ -14,7 +14,7 @@ TODO:
   - [x] instead of removing, arc it up to catch area
   - [x] pull fish up to water surface when catching, then arc in
   - [x] On critical catch, arc fish immediately into stack
-  - [ ] sit it on a stack
+  - [x] sit it on a stack
   - [ ] animate it flopping when caught
 - [ ] Spawn multiple sizes of fish
   - [ ] Larger fish in the background
