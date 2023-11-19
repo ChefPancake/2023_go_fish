@@ -11,9 +11,11 @@ TODO:
     - [x] adjust catch point to be at mouth
     - [x] when in range, freeze the fish and the hook
     - [x] when space is pressed, remove the fish and unfreeze the hook
-  - [ ] instead of removing, arc it up to catch area
-  - [ ] then animate it flopping whn caught
+  - [x] instead of removing, arc it up to catch area
+  - [x] pull fish up to water surface when catching, then arc in
+  - [x] On critical catch, arc fish immediately into stack
   - [ ] sit it on a stack
+  - [ ] animate it flopping when caught
 - [ ] Spawn multiple sizes of fish
   - [ ] Larger fish in the background
 

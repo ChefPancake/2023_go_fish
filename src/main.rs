@@ -8,6 +8,9 @@ use bevy::{app::App, DefaultPlugins, time::Time};
 use rand::prelude::*;
 
 const BACKGROUND_COLOR: Color = Color::rgb(0.1, 0.1, 0.1);
+const WATER_SIZE: Vec2 = Vec2::new(1000.0, 800.0);
+const WATER_POS: Vec2 = Vec2::new(0.0, 0.0);
+const GRAVITY: f32 = 6000.0;
 
 fn main() {
     App::new()
@@ -30,6 +33,7 @@ fn main() {
         add_camera,
         add_fish,
         add_hook,
+        add_water_box,
         add_catch_stack)
         .after(load_images))
     .add_systems(Update, (
@@ -42,6 +46,7 @@ fn main() {
         apply_fish_animation,
         move_hook,
         turn_hook_pink,
+        reel_in_fish,
     ).before(catch_fish))
     .add_systems(Update,
         catch_fish)
@@ -83,7 +88,9 @@ pub struct Hook {
 pub struct NearFish;
 
 #[derive(Component)]
-pub struct Hooked;
+pub struct Hooked {
+    pub hook_time_s: f32
+}
 
 #[derive(Component, Debug)]
 pub struct Flying {
@@ -94,6 +101,9 @@ pub struct Flying {
     pub start_time_s: f32,
     pub end_time_s: f32
 }
+
+#[derive(Component, Debug)]
+pub struct Reeling;
 
 #[derive(Component)]
 pub struct Velocity {
@@ -147,10 +157,25 @@ fn add_catch_stack(
         (MaterialMesh2dBundle {
             mesh: meshes.add(shape::Quad::new(Vec2::new(300.0, 100.0)).into()).into(),
             material: materials.add(ColorMaterial::from(Color::ORANGE_RED)),
-            transform: Transform::from_translation(Vec3::new(500.0, 300.0, -1.0)),
+            transform: Transform::from_translation(Vec3::new(500.0, 600.0, -1.0)),
             ..default()
         },
         CatchStack)
+    );
+}
+
+fn add_water_box(
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    mut commands: Commands
+) {
+    commands.spawn(
+        MaterialMesh2dBundle {
+            mesh: meshes.add(shape::Quad::new(WATER_SIZE * 1.1).into()).into(),
+            material: materials.add(ColorMaterial::from(Color::Rgba { red: 0.58, green: 0.84, blue: 0.82, alpha: 1.0 })),
+            transform: Transform::from_translation(Vec3::new(WATER_POS.x, WATER_POS.y, -100.0)),
+            ..default()
+        }
     );
 }
 
@@ -161,10 +186,12 @@ fn add_fish(
     let fish_handle = images.fish_handle.as_ref().expect("image should be loaded");
     for _ in 0..10 {
         let mut rng = rand::thread_rng();
-        let pos_x = rng.gen::<f32>() * 1000.0 - 500.0;
-        let pos_y = rng.gen::<f32>() * 500.0 - 250.0;
-        let mut timer = Timer::from_seconds(rng.gen::<f32>() * 3.0 + 6.0, TimerMode::Repeating);
-        timer.tick(Duration::from_secs_f32(rng.gen::<f32>() * 6.0));
+        let box_height = WATER_SIZE.x *0.9;
+        let box_width = WATER_SIZE.y * 0.9;
+        let pos_x = rng.gen::<f32>() * box_width - (box_width / 2.0);
+        let pos_y = rng.gen::<f32>() * box_height - (box_height / 2.0);
+        let mut timer = Timer::from_seconds(rng.gen::<f32>() * 6.0 + 3.0, TimerMode::Repeating);
+        timer.tick(Duration::from_secs_f32(rng.gen::<f32>() * 9.0));
         commands.spawn((
             SpriteBundle {
                 texture: fish_handle.clone(),
@@ -184,8 +211,8 @@ fn add_fish(
                 vel_to_apply: -250.0
             },
             FishBoundaries {
-                min_x: -500.0,
-                max_x: 500.0
+                min_x: -WATER_SIZE.x / 2.0,
+                max_x: WATER_SIZE.x / 2.0,
             },
             FishAnimation {
                 base_scale: 1.0,
@@ -282,12 +309,12 @@ fn move_hook(
 }
 
 fn fish_bite_hook(
-    fish_query: Query<(Entity, &Transform, &FishMouthPosition)>,
-    hook_query: Query<(Entity, &Transform), With<Hook>>,
+    time: Res<Time>,
+    fish_query: Query<(Entity, &Transform, &FishMouthPosition), Without<Hooked>>,
+    hook_query: Query<(Entity, &Transform), (With<Hook>, Without<NearFish>)>,
     mut commands: Commands
 ) {
     for (hook_entity, hook) in &hook_query {
-        let mut is_near_fish = false;
         for (fish_entity, fish, mouth_pos) in &fish_query {
             let distance = get_distance_to_fish_mouth(
                 &hook.translation,
@@ -295,43 +322,78 @@ fn fish_bite_hook(
                 fish.scale.x,
                 mouth_pos);
             if distance < 30.0 {
-                is_near_fish = true;
-                commands.entity(fish_entity).insert(Hooked);
+                commands.entity(fish_entity).insert(Hooked { hook_time_s: time.elapsed_seconds() });
+                commands.entity(hook_entity).insert(NearFish);
+                break;
             } else {
                 commands.entity(fish_entity).remove::<Hooked>();
             }
         }
-        if is_near_fish {
-            commands.entity(hook_entity).insert(NearFish);
-        } else {
-            commands.entity(hook_entity).remove::<NearFish>();
+    }
+}
+
+fn reel_in_fish(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut fish_query: Query<(Entity, &mut Transform), (With<Reeling>, Without<CatchStack>)>,
+    catch_stack: Query<&Transform, With<CatchStack>>
+) {
+    let reel_speed = 600.0;
+    let upper_boundary = WATER_POS.y + WATER_SIZE.y / 2.0;
+    for (entity, mut fish_pos) in &mut fish_query {
+        //move the fish straight up at reel_speed
+        //if the fish hits the surface, send it flying
+        let mut hit_surface = false;
+
+        let mut new_y = fish_pos.translation.y + reel_speed * time.delta_seconds();
+        if new_y > upper_boundary {
+            hit_surface = true;
+            new_y = upper_boundary;
+        }
+        fish_pos.translation.y = new_y;
+        if hit_surface {
+            let catch_stack_pos = catch_stack.single().translation;
+            commands.entity(entity).remove::<Reeling>();
+            send_fish_to_stack(fish_pos.translation, catch_stack_pos, GRAVITY, time.elapsed_seconds(), &mut commands, entity);
         }
     }
+}
+
+fn send_fish_to_stack(fish_pos: Vec3, catch_stack_pos: Vec3, gravity: f32, elapsed_time: f32, commands: &mut Commands, entity: Entity) {
+    let (arc_vel, arc_time) = calculate_time_and_initial_vel_for_arc(fish_pos.x, fish_pos.y, catch_stack_pos.x, catch_stack_pos.y, gravity, 900.0);
+    let flying = Flying {
+        start_vel: arc_vel,
+        gravity,
+        start_pos: Vec2::new(fish_pos.x, fish_pos.y),
+        end_pos: Vec2::new(catch_stack_pos.x, catch_stack_pos.y),
+        start_time_s: elapsed_time,
+        end_time_s: elapsed_time + arc_time,
+    };
+    commands.entity(entity).insert(flying);
 }
 
 fn catch_fish(
     mut commands: Commands,
     input: Res<Input<KeyCode>>,
     time: Res<Time>,
-    fish_query: Query<(Entity, &Transform), With<Hooked>>,
+    fish_query: Query<(Entity, &Hooked, &Transform)>,
     catch_stack: Query<&Transform, With<CatchStack>>,
+    hook_query: Query<Entity, (With<Hook>, With<NearFish>)>,
 ) {
-    let gravity = 10000.0;
+    let critical_time = 0.07;
     let catch_stack_pos = catch_stack.single().translation;
-    if input.just_pressed(KeyCode::Space) {
-        for (entity, &fish_pos) in &fish_query {
-            commands.entity(entity).remove::<(Hooked, FishMovement, FishMouthPosition, Velocity)>();
-            let fish_pos = fish_pos.translation;
-            let (arc_vel, arc_time) = calculate_time_and_initial_vel_for_arc(fish_pos.x, fish_pos.y, catch_stack_pos.x, catch_stack_pos.y, gravity, 800.0);
-            let flying = Flying {
-                start_vel: arc_vel,
-                gravity: gravity,
-                start_pos: Vec2::new(fish_pos.x, fish_pos.y),
-                end_pos: Vec2::new(catch_stack_pos.x, catch_stack_pos.y),
-                start_time_s: time.elapsed_seconds(),
-                end_time_s: time.elapsed_seconds() + arc_time,
-            };
-            commands.entity(entity).insert(flying);
+    if let Ok(hook_entity) = hook_query.get_single() {
+        if input.just_pressed(KeyCode::Space) {
+            commands.entity(hook_entity).remove::<NearFish>();
+            for (entity, hooked, fish_pos) in &fish_query {
+                commands.entity(entity).remove::<(Hooked, FishMovement, FishMouthPosition, Velocity)>();
+                let react_time = time.elapsed_seconds() - hooked.hook_time_s;
+                if react_time < critical_time {
+                    send_fish_to_stack(fish_pos.translation, catch_stack_pos, GRAVITY, time.elapsed_seconds(), &mut commands, entity)
+                } else {
+                    commands.entity(entity).insert(Reeling);
+                }
+            }
         }
     }
 }
