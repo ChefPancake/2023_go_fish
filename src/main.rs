@@ -1,7 +1,6 @@
 use std::time::Duration;
 
 use bevy::diagnostic::{LogDiagnosticsPlugin, FrameTimeDiagnosticsPlugin};
-use bevy::math::cubic_splines::CubicCurve;
 use bevy::prelude::*;
 use bevy::sprite::MaterialMesh2dBundle;
 use bevy::window::WindowResolution;
@@ -9,10 +8,12 @@ use bevy::{app::App, DefaultPlugins, time::Time};
 use rand::prelude::*;
 
 const BACKGROUND_COLOR: Color = Color::rgb(0.1, 0.1, 0.1);
-const WATER_SIZE: Vec2 = Vec2::new(1000.0, 800.0);
-const WATER_POS: Vec2 = Vec2::new(0.0, 0.0);
+const WATER_SIZE: Vec2 = Vec2::new(1600.0, 1200.0);
+const WATER_POS: Vec2 = Vec2::new(0.0, -300.0);
 const GRAVITY: f32 = 6000.0;
 const LINE_START_POS: Vec2 = Vec2::new(600.0, 600.0);
+const FISH_STACK_HEIGHT: f32 = 30.0;
+const STACK_POS: Vec3 = Vec3::new(1200.0, 300.0, -1.0);
 
 fn main() {
     App::new()
@@ -22,7 +23,7 @@ fn main() {
         DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 title: "GO FISH".to_string(),
-                resolution: WindowResolution::new(800.0, 800.0).with_scale_factor_override(0.4),
+                resolution: WindowResolution::new(1200.0, 800.0).with_scale_factor_override(0.4),
                 ..default()
             }),
             ..default()
@@ -138,8 +139,10 @@ pub struct FishMouthPosition {
     pub offset_y: f32,
 }
 
-#[derive(Component)]
-pub struct CatchStack;
+#[derive(Component, Default)]
+pub struct CatchStack {
+    pub total_fish: usize
+}
 
 fn reset_level(
     fish_query: Query<(), With<FishMovement>>,
@@ -160,10 +163,10 @@ fn add_catch_stack(
         (MaterialMesh2dBundle {
             mesh: meshes.add(shape::Quad::new(Vec2::new(300.0, 100.0)).into()).into(),
             material: materials.add(ColorMaterial::from(Color::ORANGE_RED)),
-            transform: Transform::from_translation(Vec3::new(500.0, 600.0, -1.0)),
+            transform: Transform::from_translation(STACK_POS),
             ..default()
         },
-        CatchStack)
+        CatchStack::default())
     );
 }
 
@@ -189,10 +192,10 @@ fn add_fish(
     let fish_handle = images.fish_handle.as_ref().expect("image should be loaded");
     for _ in 0..10 {
         let mut rng = rand::thread_rng();
-        let box_height = WATER_SIZE.x *0.9;
-        let box_width = WATER_SIZE.y * 0.9;
-        let pos_x = rng.gen::<f32>() * box_width - (box_width / 2.0);
-        let pos_y = rng.gen::<f32>() * box_height - (box_height / 2.0);
+        let box_width = WATER_SIZE.x * 0.9;
+        let box_height = WATER_SIZE.y * 0.9;
+        let pos_x = rng.gen::<f32>() * box_width - (box_width / 2.0) + WATER_POS.x;
+        let pos_y = rng.gen::<f32>() * box_height - (box_height / 2.0) + WATER_POS.y;
         let mut timer = Timer::from_seconds(rng.gen::<f32>() * 6.0 + 3.0, TimerMode::Repeating);
         timer.tick(Duration::from_secs_f32(rng.gen::<f32>() * 9.0));
         commands.spawn((
@@ -370,7 +373,7 @@ fn reel_in_fish(
     mut commands: Commands,
     time: Res<Time>,
     mut fish_query: Query<(Entity, &mut Transform), (With<Reeling>, Without<CatchStack>)>,
-    catch_stack: Query<&Transform, With<CatchStack>>
+    mut catch_stack: Query<(&Transform, &mut CatchStack), With<CatchStack>>
 ) {
     let reel_speed = 600.0;
     let upper_boundary = WATER_POS.y + WATER_SIZE.y / 2.0;
@@ -386,7 +389,13 @@ fn reel_in_fish(
         }
         fish_pos.translation.y = new_y;
         if hit_surface {
-            let catch_stack_pos = catch_stack.single().translation;
+            let (catch_stack_pos, mut catch_stack) = catch_stack.single_mut();
+            catch_stack.total_fish += 1;
+            let catch_stack_pos = catch_stack_pos.translation;
+            let catch_stack_pos = Vec3::new(
+                catch_stack_pos.x, 
+                catch_stack_pos.y + (catch_stack.total_fish as f32) * FISH_STACK_HEIGHT,
+                catch_stack_pos.z);
             commands.entity(entity).remove::<Reeling>();
             send_fish_to_stack(fish_pos.translation, catch_stack_pos, GRAVITY, time.elapsed_seconds(), &mut commands, entity);
         }
