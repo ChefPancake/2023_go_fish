@@ -18,4 +18,5 @@ TODO:
   - [ ] animate it flopping when caught
 - [ ] Spawn multiple sizes of fish
   - [ ] Larger fish in the background
+- [x] draw fishing line
 

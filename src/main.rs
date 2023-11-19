@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use bevy::diagnostic::{LogDiagnosticsPlugin, FrameTimeDiagnosticsPlugin};
+use bevy::math::cubic_splines::CubicCurve;
 use bevy::prelude::*;
 use bevy::sprite::MaterialMesh2dBundle;
 use bevy::window::WindowResolution;
@@ -11,6 +12,7 @@ const BACKGROUND_COLOR: Color = Color::rgb(0.1, 0.1, 0.1);
 const WATER_SIZE: Vec2 = Vec2::new(1000.0, 800.0);
 const WATER_POS: Vec2 = Vec2::new(0.0, 0.0);
 const GRAVITY: f32 = 6000.0;
+const LINE_START_POS: Vec2 = Vec2::new(600.0, 600.0);
 
 fn main() {
     App::new()
@@ -47,6 +49,7 @@ fn main() {
         move_hook,
         turn_hook_pink,
         reel_in_fish,
+        draw_fishing_line,
     ).before(catch_fish))
     .add_systems(Update,
         catch_fish)
@@ -229,6 +232,37 @@ fn add_fish(
                 drag_y: 1000.0
             }
         ));
+    }
+}
+
+fn draw_fishing_line(
+    hook_query: Query<&Transform, With<Hook>>,
+    mut gizmos: Gizmos
+) {
+    if let Ok(hook_pos) = hook_query.get_single() {
+        let hook_pos = hook_pos.translation;
+        let visual_surface_y = WATER_SIZE.y * 1.1 / 2.0;
+        let distance_to_hook_x = LINE_START_POS.x - hook_pos.x;
+        let distance_to_surface_y = LINE_START_POS.y - visual_surface_y;
+
+        let node_near_pole = Vec2::new(
+            hook_pos.x + 0.9 * distance_to_hook_x, 
+            visual_surface_y + 0.3 * distance_to_surface_y,
+        );
+        let node_near_surface = Vec2::new(
+            hook_pos.x + 0.4 * distance_to_hook_x, 
+            visual_surface_y + 0.1 * distance_to_surface_y,
+        );
+        let node_at_surface = Vec2::new(hook_pos.x, visual_surface_y);
+        let points = [[
+            LINE_START_POS, 
+            node_near_pole,
+            node_near_surface,
+            node_at_surface,
+        ]];
+        let bezier = Bezier::new(points);
+        gizmos.linestrip_2d(bezier.to_curve().iter_positions(50), Color::GRAY);
+        gizmos.line_2d(node_at_surface, Vec2::new(hook_pos.x, hook_pos.y + 25.0), Color::GRAY);
     }
 }
 
