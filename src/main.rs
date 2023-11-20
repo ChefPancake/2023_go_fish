@@ -14,7 +14,7 @@ const GRAVITY: f32 = 6000.0;
 const LINE_START_POS: Vec2 = Vec2::new(600.0, 600.0);
 const FISH_STACK_HEIGHT: f32 = 30.0;
 const STACK_POS: Vec3 = Vec3::new(1200.0, 300.0, -1.0);
-const FISH_PER_LEVEL: usize = 5;
+const FISH_PER_LEVEL: usize = 10;
 
 fn main() {
     App::new()
