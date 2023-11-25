@@ -8,15 +8,25 @@ use bevy::{app::App, DefaultPlugins, time::Time};
 use rand::prelude::*;
 
 const BACKGROUND_COLOR: Color = Color::rgb(0.1, 0.1, 0.1);
-const WATER_SIZE: Vec2 = Vec2::new(1300.0, 1200.0);
-const WATER_POS: Vec2 = Vec2::new(375.0, -250.0);
+const WATER_SIZE: Vec2 = Vec2::new(1450.0, 1200.0);
+const WATER_POS: Vec2 = Vec2::new(365.0, -250.0);
 const GRAVITY: f32 = 6000.0;
 const LINE_START_POS: Vec2 = Vec2::new(-470.0, 658.0);
 const BEAR_POS: Vec2 = Vec2::new(-700.0, 560.0);
-const FISH_STACK_HEIGHT: f32 = 30.0;
+const FISH_STACK_HEIGHT: f32 = 15.0;
 const STACK_POS: Vec3 = Vec3::new(-1200.0, 300.0, -1.0);
 const FISH_PER_LEVEL: usize = 10;
 const WINDOW_SIZE: Vec2 = Vec2::new(1200.0, 850.0);
+const BITE_DISTANCE: f32 = 30.0;
+
+const FISH_ATLAS_SIZES: [usize; 10] = [
+    10, 5,
+    9,  4,
+    8,  3,
+    7,  2,
+    6,  1,
+];
+
 
 fn main() {
     App::new()
@@ -69,12 +79,50 @@ fn add_camera(mut commands: Commands) {
 
 fn load_images(
     mut images: ResMut<ImageHandles>,
+    mut atlases: ResMut<Assets<TextureAtlas>>,
     asset_server: Res<AssetServer>
 ) {
     images.bg_handle = Some(asset_server.load("background.png"));
-    images.fish_handle = Some(asset_server.load("fish.png"));
     images.hook_handle = Some(asset_server.load("hook.png"));
-    images.bear_handle = Some(asset_server.load("bear_atlas.png"));
+
+    let fish_handle = asset_server.load("fish_atlas.png");
+    let fish_atlas = TextureAtlas::from_grid(
+        fish_handle.clone(),
+        Vec2::new(600.0, 200.0),
+        2,
+        5,
+        None, 
+        None
+    );
+    images.fish_handle = Some(fish_handle);
+    let fish_atlas_handle = atlases.add(fish_atlas);
+    images.fish_atlas_handle = Some(fish_atlas_handle);
+
+    let stack_handle = asset_server.load("stack_atlas.png");
+    let stack_atlas = TextureAtlas::from_grid(
+        stack_handle.clone(),
+        Vec2::new(600.0, 200.0),
+        2,
+        5,
+        None, 
+        None
+    );
+    images.stack_handle = Some(stack_handle);
+    let fish_atlas_handle = atlases.add(stack_atlas);
+    images.stack_atlas_handle = Some(fish_atlas_handle);
+
+    let bear_handle = asset_server.load("bear_atlas.png");
+    let bear_atlas = TextureAtlas::from_grid(
+        bear_handle.clone(), 
+        Vec2::new(550.0, 450.0),
+        3,
+        2, 
+        None, 
+        None
+    );
+    let bear_atlas_handle = atlases.add(bear_atlas);
+    images.bear_handle = Some(bear_handle);
+    images.bear_atlas_handle = Some(bear_atlas_handle);
 }
 
 #[derive(Resource, Default)]
@@ -82,7 +130,12 @@ pub struct ImageHandles {
     pub fish_handle: Option<Handle<Image>>,
     pub hook_handle: Option<Handle<Image>>,
     pub bg_handle: Option<Handle<Image>>,
-    pub bear_handle: Option<Handle<Image>>
+    pub bear_handle: Option<Handle<Image>>,
+    pub stack_handle: Option<Handle<Image>>,
+
+    pub bear_atlas_handle: Option<Handle<TextureAtlas>>,
+    pub fish_atlas_handle: Option<Handle<TextureAtlas>>,
+    pub stack_atlas_handle: Option<Handle<TextureAtlas>>,
 }
 
 #[derive(Component)]
@@ -178,21 +231,11 @@ fn add_bg(
 
 fn add_bear(
     handles: Res<ImageHandles>,
-    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
     mut commands: Commands
 ) {
-    let bear_handle = handles.bear_handle.as_ref().expect("images should be loaded");
-    let atlas = TextureAtlas::from_grid(
-        bear_handle.clone(), 
-        Vec2::new(550.0, 450.0),
-        3,
-        2, 
-        None, 
-        None);
-    let atlas_handle = texture_atlases.add(atlas);
-
+    let atlas_handle = handles.bear_atlas_handle.as_ref().expect("Images should be loaded");
     commands.spawn(SpriteSheetBundle {
-        texture_atlas: atlas_handle,
+        texture_atlas: atlas_handle.clone(),
         sprite: TextureAtlasSprite::new(0),
         transform: Transform::from_translation(Vec3::new(BEAR_POS.x, BEAR_POS.y, 10.0)), 
         ..default()
@@ -200,17 +243,11 @@ fn add_bear(
 }
 
 fn add_catch_stack(
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
     mut commands: Commands
 ){
     commands.spawn(
-        (MaterialMesh2dBundle {
-            mesh: meshes.add(shape::Quad::new(Vec2::new(300.0, 100.0)).into()).into(),
-            material: materials.add(ColorMaterial::from(Color::ORANGE_RED)),
-            transform: Transform::from_translation(STACK_POS),
-            ..default()
-        },
+        (
+        Transform::from_translation(STACK_POS),
         CatchStack::default())
     );
 }
@@ -219,38 +256,39 @@ fn add_fish(
     images: Res<ImageHandles>,
     mut commands: Commands,
 ) {
-    let fish_handle = images.fish_handle.as_ref().expect("image should be loaded");
+    let fish_atlas_handle = images.fish_atlas_handle.as_ref().expect("Images should be loaded");
     let box_width = WATER_SIZE.x * 0.9;
     let box_height = WATER_SIZE.y * 0.9;
     let lane_height = box_height / FISH_PER_LEVEL as f32;
-    println!("total height: {}; lane height: {}", box_height, lane_height);
     let mut rng = rand::thread_rng();
     for index in 0..FISH_PER_LEVEL {
+        let fish_half_width = (FISH_ATLAS_SIZES[index] - 1) as f32 * 20.0 + 30.0;
         let pos_x = rng.gen::<f32>() * box_width - (box_width / 2.0) + WATER_POS.x;
-        let pos_y = WATER_POS.y  - box_height / 2.0 + lane_height * index as f32 + rng.gen::<f32>() * lane_height * 0.8;
+        let pos_y = WATER_POS.y - box_height / 2.0 + lane_height * index as f32 + rng.gen::<f32>() * lane_height * 0.8;
         let mut timer = Timer::from_seconds(rng.gen::<f32>() * 6.0 + 3.0, TimerMode::Repeating);
         timer.tick(Duration::from_secs_f32(rng.gen::<f32>() * 9.0));
         commands.spawn((
-            SpriteBundle {
-                texture: fish_handle.clone(),
+            SpriteSheetBundle {
+                texture_atlas: fish_atlas_handle.clone(),
+                sprite: TextureAtlasSprite::new(index),
                 transform: Transform::from_translation(
                     Vec3::new(
                         pos_x, 
                         pos_y, 
-                        0.0)),
+                        -(FISH_ATLAS_SIZES[index] as f32))),
                 ..default()
             },
             FishMouthPosition {
-                offset_x: -60.0,
+                offset_x: fish_half_width,
                 offset_y: 20.0
             },
             FishMovement {
                 next_move_time: timer,
-                vel_to_apply: -250.0
+                vel_to_apply: 250.0
             },
             FishBoundaries {
-                min_x: -WATER_SIZE.x / 2.0 + WATER_POS.x,
-                max_x: WATER_SIZE.x / 2.0 + WATER_POS.x,
+                min_x: -WATER_SIZE.x / 2.0 + WATER_POS.x + fish_half_width,
+                max_x: WATER_SIZE.x / 2.0 + WATER_POS.x - fish_half_width,
             },
             FishAnimation {
                 base_scale: 1.0,
@@ -390,7 +428,7 @@ fn fish_bite_hook(
                 &fish.translation,
                 fish.scale.x,
                 mouth_pos);
-            if distance < 30.0 {
+            if distance < BITE_DISTANCE {
                 commands.entity(fish_entity).insert(Hooked { hook_time_s: time.elapsed_seconds() });
                 commands.entity(hook_entity).insert(NearFish);
                 break;
@@ -482,17 +520,21 @@ fn catch_fish(
 fn interpolate_flying_arc(
     mut commands: Commands,
     time: Res<Time>,
+    images: Res<ImageHandles>,
     mut flying_query: Query<(Entity, &mut Transform, &Flying)>
 ) {
     for (entity, mut transform, flying) in &mut flying_query {
         if time.elapsed_seconds() > flying.end_time_s {
-            commands.entity(entity).remove::<Flying>();
-            transform.translation = Vec3::new(flying.end_pos.x, flying.end_pos.y, 0.0);
+            //TODO: K: move sprite change behind an event
+            commands.entity(entity).remove::<(Flying, Handle<TextureAtlas>)>();
+            commands.entity(entity).insert(images.stack_atlas_handle.as_ref().expect("Images should be loaded").clone());
+            transform.translation = Vec3::new(flying.end_pos.x, flying.end_pos.y, transform.translation.z);
+            transform.scale = Vec3::new(1.0, 1.0, 1.0);
         } else {
             let elapsed = time.elapsed_seconds() - flying.start_time_s;
             let new_pos_x = flying.start_pos.x + (elapsed * flying.start_vel.x);
             let new_pos_y = flying.start_pos.y + (elapsed * flying.start_vel.y) - (flying.gravity * elapsed * elapsed / 2.0 );
-            transform.translation = Vec3::new(new_pos_x, new_pos_y, 0.0);
+            transform.translation = Vec3::new(new_pos_x, new_pos_y, transform.translation.z);
         }
     }
 }
