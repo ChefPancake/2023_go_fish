@@ -8,13 +8,15 @@ use bevy::{app::App, DefaultPlugins, time::Time};
 use rand::prelude::*;
 
 const BACKGROUND_COLOR: Color = Color::rgb(0.1, 0.1, 0.1);
-const WATER_SIZE: Vec2 = Vec2::new(1600.0, 1200.0);
-const WATER_POS: Vec2 = Vec2::new(0.0, -300.0);
+const WATER_SIZE: Vec2 = Vec2::new(1300.0, 1200.0);
+const WATER_POS: Vec2 = Vec2::new(375.0, -250.0);
 const GRAVITY: f32 = 6000.0;
-const LINE_START_POS: Vec2 = Vec2::new(600.0, 600.0);
+const LINE_START_POS: Vec2 = Vec2::new(-470.0, 658.0);
+const BEAR_POS: Vec2 = Vec2::new(-700.0, 560.0);
 const FISH_STACK_HEIGHT: f32 = 30.0;
-const STACK_POS: Vec3 = Vec3::new(1200.0, 300.0, -1.0);
+const STACK_POS: Vec3 = Vec3::new(-1200.0, 300.0, -1.0);
 const FISH_PER_LEVEL: usize = 10;
+const WINDOW_SIZE: Vec2 = Vec2::new(1200.0, 850.0);
 
 fn main() {
     App::new()
@@ -24,7 +26,7 @@ fn main() {
         DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 title: "GO FISH".to_string(),
-                resolution: WindowResolution::new(1200.0, 800.0).with_scale_factor_override(0.4),
+                resolution: WindowResolution::new(WINDOW_SIZE.x, WINDOW_SIZE.y).with_scale_factor_override(0.4),
                 ..default()
             }),
             ..default()
@@ -35,9 +37,10 @@ fn main() {
         load_images)
     .add_systems(Startup, (
         add_camera,
+        add_bg,
+        add_bear,
         add_fish,
         add_hook,
-        add_water_box,
         add_catch_stack)
         .after(load_images))
     .add_systems(Update, (
@@ -68,14 +71,18 @@ fn load_images(
     mut images: ResMut<ImageHandles>,
     asset_server: Res<AssetServer>
 ) {
+    images.bg_handle = Some(asset_server.load("background.png"));
     images.fish_handle = Some(asset_server.load("fish.png"));
     images.hook_handle = Some(asset_server.load("hook.png"));
+    images.bear_handle = Some(asset_server.load("bear_atlas.png"));
 }
 
 #[derive(Resource, Default)]
 pub struct ImageHandles {
     pub fish_handle: Option<Handle<Image>>,
-    pub hook_handle: Option<Handle<Image>>
+    pub hook_handle: Option<Handle<Image>>,
+    pub bg_handle: Option<Handle<Image>>,
+    pub bear_handle: Option<Handle<Image>>
 }
 
 #[derive(Component)]
@@ -155,6 +162,43 @@ fn reset_level(
     }
 }
 
+fn add_bg(
+    images: Res<ImageHandles>,
+    mut commands: Commands
+) {
+    let image_handle = images.bg_handle.as_ref().expect("images should be loaded");
+    commands.spawn(
+        SpriteBundle {
+            texture: image_handle.clone(),
+            transform: Transform::from_translation(Vec3::new(0.0, 0.0, -1000.0)),
+            ..default()
+        }
+    );
+}
+
+fn add_bear(
+    handles: Res<ImageHandles>,
+    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
+    mut commands: Commands
+) {
+    let bear_handle = handles.bear_handle.as_ref().expect("images should be loaded");
+    let atlas = TextureAtlas::from_grid(
+        bear_handle.clone(), 
+        Vec2::new(550.0, 450.0),
+        3,
+        2, 
+        None, 
+        None);
+    let atlas_handle = texture_atlases.add(atlas);
+
+    commands.spawn(SpriteSheetBundle {
+        texture_atlas: atlas_handle,
+        sprite: TextureAtlasSprite::new(0),
+        transform: Transform::from_translation(Vec3::new(BEAR_POS.x, BEAR_POS.y, 10.0)), 
+        ..default()
+    });
+}
+
 fn add_catch_stack(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
@@ -168,21 +212,6 @@ fn add_catch_stack(
             ..default()
         },
         CatchStack::default())
-    );
-}
-
-fn add_water_box(
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
-    mut commands: Commands
-) {
-    commands.spawn(
-        MaterialMesh2dBundle {
-            mesh: meshes.add(shape::Quad::new(WATER_SIZE * 1.1).into()).into(),
-            material: materials.add(ColorMaterial::from(Color::Rgba { red: 0.58, green: 0.84, blue: 0.82, alpha: 1.0 })),
-            transform: Transform::from_translation(Vec3::new(WATER_POS.x, WATER_POS.y, -100.0)),
-            ..default()
-        }
     );
 }
 
@@ -220,8 +249,8 @@ fn add_fish(
                 vel_to_apply: -250.0
             },
             FishBoundaries {
-                min_x: -WATER_SIZE.x / 2.0,
-                max_x: WATER_SIZE.x / 2.0,
+                min_x: -WATER_SIZE.x / 2.0 + WATER_POS.x,
+                max_x: WATER_SIZE.x / 2.0 + WATER_POS.x,
             },
             FishAnimation {
                 base_scale: 1.0,

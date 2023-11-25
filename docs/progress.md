@@ -19,4 +19,13 @@ TODO:
 - [ ] Spawn multiple sizes of fish
   - [ ] Larger fish in the background
 - [x] draw fishing line
+- [ ] Incorporate images
+  - [x] Background
+    - move stuff into position
+  - [x] Bear - 1 frame
+    - move line to the rod
+  - [ ] Fish
+    - Spawn one of each
+  - [ ] Stacked Fish
+    - change sprite to the top profile
 
