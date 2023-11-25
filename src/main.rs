@@ -1,8 +1,6 @@
 use std::time::Duration;
-
 use bevy::diagnostic::{LogDiagnosticsPlugin, FrameTimeDiagnosticsPlugin};
 use bevy::prelude::*;
-use bevy::sprite::MaterialMesh2dBundle;
 use bevy::window::WindowResolution;
 use bevy::{app::App, DefaultPlugins, time::Time};
 use rand::prelude::*;
@@ -11,8 +9,8 @@ const BACKGROUND_COLOR: Color = Color::rgb(0.1, 0.1, 0.1);
 const WATER_SIZE: Vec2 = Vec2::new(1450.0, 1200.0);
 const WATER_POS: Vec2 = Vec2::new(365.0, -250.0);
 const GRAVITY: f32 = 6000.0;
-const LINE_START_POS: Vec2 = Vec2::new(-470.0, 658.0);
-const BEAR_POS: Vec2 = Vec2::new(-700.0, 560.0);
+const LINE_START_POS: Vec2 = Vec2::new(-290.0, 638.0);
+const BEAR_POS: Vec2 = Vec2::new(-520.0, 540.0);
 const FISH_STACK_HEIGHT: f32 = 15.0;
 const STACK_POS: Vec3 = Vec3::new(-1200.0, 300.0, -1.0);
 const FISH_PER_LEVEL: usize = 10;
@@ -261,21 +259,26 @@ fn add_fish(
     let box_height = WATER_SIZE.y * 0.9;
     let lane_height = box_height / FISH_PER_LEVEL as f32;
     let mut rng = rand::thread_rng();
-    for index in 0..FISH_PER_LEVEL {
-        let fish_half_width = (FISH_ATLAS_SIZES[index] - 1) as f32 * 20.0 + 30.0;
+    let mut fish_indexes: Vec<usize> = (0..FISH_PER_LEVEL).collect();
+    fish_indexes.sort_by_key(|_| (rng.gen::<f32>() * FISH_PER_LEVEL as f32 * 1000.0) as usize);
+    println!("{:?}", fish_indexes);
+    for (pos_index, fish_index) in fish_indexes.iter().enumerate() {
+        println!("{:?}", pos_index);
+        println!("{:?}", fish_index);
+        let fish_half_width = (FISH_ATLAS_SIZES[*fish_index] - 1) as f32 * 20.0 + 30.0;
         let pos_x = rng.gen::<f32>() * box_width - (box_width / 2.0) + WATER_POS.x;
-        let pos_y = WATER_POS.y - box_height / 2.0 + lane_height * index as f32 + rng.gen::<f32>() * lane_height * 0.8;
+        let pos_y = WATER_POS.y - box_height / 2.0 + lane_height * pos_index as f32 + rng.gen::<f32>() * lane_height * 0.8;
         let mut timer = Timer::from_seconds(rng.gen::<f32>() * 6.0 + 3.0, TimerMode::Repeating);
         timer.tick(Duration::from_secs_f32(rng.gen::<f32>() * 9.0));
         commands.spawn((
             SpriteSheetBundle {
                 texture_atlas: fish_atlas_handle.clone(),
-                sprite: TextureAtlasSprite::new(index),
+                sprite: TextureAtlasSprite::new(*fish_index),
                 transform: Transform::from_translation(
                     Vec3::new(
                         pos_x, 
                         pos_y, 
-                        -(FISH_ATLAS_SIZES[index] as f32))),
+                        -(FISH_ATLAS_SIZES[*fish_index] as f32))),
                 ..default()
             },
             FishMouthPosition {
@@ -314,7 +317,7 @@ fn draw_fishing_line(
 ) {
     if let Ok(hook_pos) = hook_query.get_single() {
         let hook_pos = hook_pos.translation;
-        let visual_surface_y = WATER_POS.y + WATER_SIZE.y * 1.1 / 2.0;
+        let visual_surface_y = WATER_POS.y + WATER_SIZE.y / 2.0 - 40.0;
         let distance_to_hook_x = LINE_START_POS.x - hook_pos.x;
         let distance_to_surface_y = LINE_START_POS.y - visual_surface_y;
 

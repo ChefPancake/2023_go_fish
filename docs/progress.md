@@ -16,8 +16,9 @@ TODO:
   - [x] On critical catch, arc fish immediately into stack
   - [x] sit it on a stack
   - [ ] animate it flopping when caught
-- [ ] Spawn multiple sizes of fish
-  - [ ] Larger fish in the background
+- [x] Spawn multiple sizes of fish
+  - [x] Larger fish in the background
+  - [x] randomize placement
 - [x] draw fishing line
 - [x] Incorporate images
   - [x] Background
@@ -28,4 +29,17 @@ TODO:
     - Spawn one of each
   - [x] Stacked Fish
     - change sprite to the top profile
+- [ ] add snail
+  - circle for now
+  - [ ] moves across bottom between rocks
+  - [ ] game ends when he travels across
 
+
+---
+
+For Em:
+- Fix bear spot perspective
+- add stump
+- flatten/lower water
+- move stack spot away from edge
+- name game
