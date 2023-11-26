@@ -246,11 +246,20 @@ pub struct FishLandedInStack {
 }
 
 fn reset_level(
-    fish_query: Query<(), With<FishMovement>>,
+    mut stack_query: Query<&mut CatchStack>,
+    fish_query: Query<Entity, With<FishSize>>,
     images: Res<ImageHandles>,
-    commands: Commands,
+    mut commands: Commands,
 ) {
-    if fish_query.is_empty() {
+    let mut catch_stack = stack_query.single_mut();
+    if catch_stack.total_fish == FISH_PER_LEVEL {
+        catch_stack.total_fish = 0;
+        for item in catch_stack.fish.iter_mut() {
+            *item = None;
+        }
+        for fish_entity in &fish_query {
+            commands.entity(fish_entity).despawn();
+        }
         add_fish(images, commands);
     }
 }
@@ -318,9 +327,7 @@ fn add_fish(
     let lane_height = box_height / FISH_PER_LEVEL as f32;
     let mut rng = rand::thread_rng();
     let mut fish_and_sort: Vec<(usize, usize)> = (0..FISH_PER_LEVEL).map(|f| (f, (rng.gen::<f32>() * FISH_PER_LEVEL as f32 * 1000.0) as usize)).collect();
-    println!("{:?}", fish_and_sort);
     fish_and_sort.sort_by_key(|(_, key)| *key);
-    //fish_indexes.sort_by_key(|_| (rng.gen::<f32>() * FISH_PER_LEVEL as f32 * 1000.0) as usize);
     for (pos_index, fish_index) in fish_and_sort.iter().map(|(item, _)| item).enumerate() {
         let fish_size = FISH_ATLAS_SIZES[*fish_index];
         let fish_half_width = (fish_size - 1) as f32 * 20.0 + 30.0;
@@ -447,7 +454,7 @@ fn add_hook(
             texture: asset_server.load("hook.png"),
             transform: 
                 Transform { 
-                    translation: Vec3::new(0.0, 0.0, 0.0),
+                    translation: Vec3::new(300.0, 0.0, 0.0),
                     scale: Vec3::new(2.0, 2.0, 1.0),
                     ..default()
                 },
@@ -464,16 +471,16 @@ fn move_hook(
     input: Res<Input<KeyCode>>,
     time: Res<Time>
 ) {
-    let left_pressed = input.pressed(KeyCode::A) || input.pressed(KeyCode::Left);
-    let right_pressed = input.pressed(KeyCode::D) || input.pressed(KeyCode::Right);
     let up_pressed = input.pressed(KeyCode::W) || input.pressed(KeyCode::Up);
     let down_pressed = input.pressed(KeyCode::S) || input.pressed(KeyCode::Down);
-    let x_vel = (if left_pressed { -1.0 } else { 0.0 } + if right_pressed { 1.0 } else { 0.0 });
     let y_vel = (if up_pressed { 1.0 } else { 0.0 } + if down_pressed { -1.0 } else { 0.0 });
-    let vel_vec = Vec3::new(x_vel, y_vel, 0.0).normalize_or_zero() * time.delta_seconds();
+    let y_del = y_vel * time.delta_seconds();
     
     for (mut transform, hook) in &mut query {
-        transform.translation += vel_vec * hook.move_speed;
+        let new_y = transform.translation.y + y_del * hook.move_speed;
+        let water_top = WATER_POS.y + WATER_SIZE.y / 2.0 - 100.0;
+        let water_bottom = WATER_POS.y - WATER_SIZE.y / 2.0;
+        transform.translation.y = new_y.clamp(water_bottom, water_top);
     }
 }
 
@@ -505,7 +512,7 @@ fn reel_in_fish(
     mut commands: Commands,
     time: Res<Time>,
     mut fish_query: Query<(Entity, &mut Transform), (With<Reeling>, Without<CatchStack>)>,
-    mut catch_stack: Query<(&Transform, &mut CatchStack), With<CatchStack>>
+    catch_stack: Query<(&Transform, &CatchStack)>
 ) {
     let reel_speed = 600.0;
     let upper_boundary = WATER_POS.y + WATER_SIZE.y / 2.0;
@@ -521,8 +528,7 @@ fn reel_in_fish(
         }
         fish_pos.translation.y = new_y;
         if hit_surface {
-            let (catch_stack_pos, mut catch_stack) = catch_stack.single_mut();
-            catch_stack.total_fish += 1;
+            let (catch_stack_pos, catch_stack) = catch_stack.single();
             let catch_stack_pos = catch_stack_pos.translation;
             let catch_stack_pos = Vec3::new(
                 catch_stack_pos.x, 
@@ -564,7 +570,6 @@ fn catch_fish(
                 commands.entity(entity).remove::<(Hooked, FishMovement, FishMouthPosition, Velocity)>();
                 let react_time = time.elapsed_seconds() - hooked.hook_time_s;
                 if react_time < critical_time {
-                    catch_stack.total_fish += 1;
                     let catch_stack_pos = catch_stack_pos.translation;
                     let catch_stack_pos = Vec3::new(
                         catch_stack_pos.x, 
@@ -676,6 +681,7 @@ fn handle_fish_landed_in_stack(
                 }
             }
         }
+        catch_stack.total_fish = catch_stack.total_fish + 1 - indexes_to_remove.len();
         for index in indexes_to_remove {
             catch_stack.fish[index] = None;
         }

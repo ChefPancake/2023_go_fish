@@ -38,6 +38,7 @@ TODO K:
   - [x] arc them out of the stack
   - [x] return them to their original pos.y
   - [x] tone down the vel_x
+- [ ] after squidging, drop top fish to new position
 - [ ] add x drag to water during return
 - [ ] add fish chasing
   - when near and facing the hook, fish will chase it. 
@@ -60,6 +61,7 @@ TODO K:
       - freeze all fish: swimming, reeling, and flying
     - [ ] alternate two critical frames N times
   - [ ] when caught fish goes flying, switch to catch frame
+- [x] reset level when last fish lands on stack and nothing is knocked out
 
 ---
 
