@@ -37,6 +37,8 @@ fn main() {
     .add_event::<HookedFish>()
     .add_event::<StackCompleted>()
     .add_event::<FishKnockedOutOfStack>()
+    .add_event::<HookLandedInWater>()
+    .add_event::<FishReturnedToWater>()
     .insert_resource(ClearColor(BACKGROUND_COLOR))
     .insert_resource(ImageHandles::default())
     .add_plugins((
@@ -87,7 +89,9 @@ fn main() {
         handle_hook_on_bite,
         handle_hook_reeled_to_surface,
         handle_fish_knocked_out_of_stack,
-        handle_fish_landed
+        handle_fish_landed,
+        handle_hook_landed_in_water,
+        handle_fish_returned_to_water
     ))
     .add_systems(Update, (
         reset_fish,
@@ -569,7 +573,7 @@ pub struct HookedFish {
 
 fn fish_bite_hook(
     fish_query: Query<(Entity, &Transform, &FishMouthPosition), Without<Hooked>>,
-    hook_query: Query<(Entity, &Transform), (With<Hook>, Without<NearFish>)>,
+    hook_query: Query<(Entity, &Transform), (With<HookInWater>, Without<NearFish>)>,
     mut on_hook: EventWriter<HookedFish>,
 ) {
     for (hook_entity, hook) in &hook_query {
@@ -739,14 +743,12 @@ fn handle_hook_caught_fish(
 }
 
 fn interpolate_flying_arc(
-    mut commands: Commands,
+    mut flying_query: Query<(Entity, &mut Transform, &Flying, &FishSize, &FishLanePos)>,
     time: Res<Time>,
     mut on_land: EventWriter<FishLandedInStack>,
-    mut flying_query: Query<(Entity, &mut Transform, &Flying, &FishSize, &FishLanePos)>
 ) {
     for (entity, mut transform, flying, size, lane_pos) in &mut flying_query {
         if time.elapsed_seconds() > flying.end_time_s {
-            commands.entity(entity).remove::<Flying>();
             on_land.send(FishLandedInStack { 
                 entity, 
                 fish_size: size.size, 
@@ -764,15 +766,19 @@ fn interpolate_flying_arc(
     }
 }
 
+#[derive(Event)]
+pub struct HookLandedInWater {
+    pub hook_entity: Entity
+}
+
 fn interpolate_casting_arc(
-    mut commands: Commands,
+    mut casting_query: Query<(Entity, &mut Transform, &CastingHook)>,
     time: Res<Time>,
-    mut casting_query: Query<(Entity, &mut Transform, &CastingHook)>
+    mut on_landed: EventWriter<HookLandedInWater>,
 ) {
     for (entity, mut transform, casting) in &mut casting_query {
         if time.elapsed_seconds() > casting.end_time_s {
-            commands.entity(entity).remove::<CastingHook>();
-            commands.entity(entity).insert(HookInWater);
+            on_landed.send(HookLandedInWater { hook_entity: entity });
             transform.translation = Vec3::new(casting.end_pos.x, casting.end_pos.y, transform.translation.z);
         } else {
             let elapsed = time.elapsed_seconds() - casting.start_time_s;
@@ -783,30 +789,38 @@ fn interpolate_casting_arc(
     }
 }
 
-fn interpolate_returning_to_water_arcs(
-    mut commands: Commands,
-    time: Res<Time>,
-    mut returning_query: Query<(Entity, &mut Transform, &ReturningToWater, &FishSize)>,
-    images: Res<ImageHandles>
+fn handle_hook_landed_in_water(
+    mut on_landed: EventReader<HookLandedInWater>,
+    hook_query: Query<Entity, With<CastingHook>>,
+    mut commands: Commands
 ) {
-    for (entity, mut transform, returning, size) in &mut returning_query {
-        let mut rng = rand::thread_rng();
+    for event in on_landed.iter() {
+        if let Ok(hook_entity) = hook_query.get_single() {
+            if hook_entity == event.hook_entity {
+                commands.entity(hook_entity).remove::<CastingHook>();
+                commands.entity(hook_entity).insert(HookInWater);
+            }
+        }
+    }
+}
+
+#[derive(Event)]
+pub struct FishReturnedToWater {
+    pub fish_entity: Entity,
+    pub end_vel: Vec2
+}
+
+fn interpolate_returning_to_water_arcs(
+    time: Res<Time>,
+    mut returning_query: Query<(Entity, &mut Transform, &ReturningToWater)>,
+    mut on_returned: EventWriter<FishReturnedToWater>
+) {
+    for (entity, mut transform, returning) in &mut returning_query {
         if time.elapsed_seconds() > returning.end_time_s {
-            commands.entity(entity).remove::<(ReturningToWater, Handle<TextureAtlas>)>();
-            commands.entity(entity).insert((
-                Velocity { 
-                    x: returning.start_vel.x,
-                    y: 0.0,
-                    drag_x: WATER_DRAG_X,
-                    drag_y: WATER_DRAG_Y
-                },
-                FishMovement {
-                    next_move_time: build_fish_movement_timer(&mut rng),
-                    vel_to_apply: FISH_VELOCITY
-                },
-                build_fish_mouth_position(size.size),
-                images.fish_atlas_handle.as_ref().expect("Images should be loaded").clone()
-            ));
+            on_returned.send(FishReturnedToWater { 
+                fish_entity: entity, 
+                end_vel: Vec2::new(returning.start_vel.x, 0.0) 
+            });
             transform.translation = Vec3::new(returning.end_pos.x, returning.end_pos.y, transform.translation.z);
             transform.scale = Vec3::new(1.0, 1.0, 1.0);
         } else if time.elapsed_seconds() > returning.water_entrance_time_s {
@@ -823,13 +837,43 @@ fn interpolate_returning_to_water_arcs(
     }
 }
 
+fn handle_fish_returned_to_water(
+    mut on_returned: EventReader<FishReturnedToWater>,
+    images: Res<ImageHandles>,
+    fish_query: Query<(Entity, &FishSize)>,
+    mut commands: Commands,
+) {
+    for event in on_returned.iter() {
+        for (fish_entity, fish_size) in &fish_query {
+            if fish_entity == event.fish_entity {   
+                let mut rng = rand::thread_rng();
+                commands.entity(event.fish_entity).remove::<(ReturningToWater, Handle<TextureAtlas>)>();
+                commands.entity(event.fish_entity).insert((
+                    Velocity { 
+                        x: event.end_vel.x,
+                        y: event.end_vel.y,
+                        drag_x: WATER_DRAG_X,
+                        drag_y: WATER_DRAG_Y
+                    },
+                    FishMovement {
+                        next_move_time: build_fish_movement_timer(&mut rng),
+                        vel_to_apply: FISH_VELOCITY
+                    },
+                    build_fish_mouth_position(fish_size.size),
+                    images.fish_atlas_handle.as_ref().expect("Images should be loaded").clone()
+                ));
+            }
+        }
+    }
+}
+
 fn handle_fish_landed(
     mut on_land: EventReader<FishLandedInStack>,
     images: Res<ImageHandles>,
     mut commands: Commands
 ) {
     for event in on_land.iter() {
-        commands.entity(event.entity).remove::<Handle<TextureAtlas>>();
+        commands.entity(event.entity).remove::<(Handle<TextureAtlas>, Flying)>();
         commands.entity(event.entity).insert((
             images.stack_atlas_handle.as_ref().expect("Images should be loaded").clone(),
             InCatchStack
@@ -851,19 +895,21 @@ fn handle_fish_knocked_out_of_stack(
 ) {
     for event in on_knocked_out.iter() {
         for (fish_entity, lane_pos) in &fish_query {
-            let water_y = WATER_POS.y + WATER_SIZE.y / 2.0;
-            let return_pos = calculate_return_position(lane_pos.pos_y);
-            let return_val = calculate_return_path(
-                event.stack_position.x, 
-                event.stack_position.y, 
-                return_pos.x, 
-                return_pos.y, 
-                water_y, 
-                GRAVITY, 
-                WATER_DRAG_Y, 
-                time.elapsed_seconds());
-            commands.entity(fish_entity).remove::<InCatchStack>();
-            commands.entity(fish_entity).insert(return_val);
+            if fish_entity == event.fish_entity {
+                let water_y = WATER_POS.y + WATER_SIZE.y / 2.0;
+                let return_pos = calculate_return_position(lane_pos.pos_y);
+                let return_val = calculate_return_path(
+                    event.stack_position.x, 
+                    event.stack_position.y, 
+                    return_pos.x, 
+                    return_pos.y, 
+                    water_y, 
+                    GRAVITY, 
+                    WATER_DRAG_Y, 
+                    time.elapsed_seconds());
+                    commands.entity(fish_entity).remove::<InCatchStack>();
+                    commands.entity(fish_entity).insert(return_val);
+            }
         }
     }
 }
