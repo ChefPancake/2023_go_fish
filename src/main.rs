@@ -8,15 +8,15 @@ use rand::prelude::*;
 const BACKGROUND_COLOR: Color = Color::rgb(0.1, 0.1, 0.1);
 const WATER_SIZE: Vec2 = Vec2::new(1450.0, 1200.0);
 const WATER_POS: Vec2 = Vec2::new(365.0, -250.0);
-const GRAVITY: f32 = 2000.0;
-const WATER_DRAG_Y: f32 = 2000.0;
+const GRAVITY: f32 = 6000.0;
+const WATER_DRAG_Y: f32 = 4000.0;
 const WATER_DRAG_X: f32 = 100.0;
 const LINE_START_POS: Vec2 = Vec2::new(-290.0, 638.0);
 const BEAR_POS: Vec2 = Vec2::new(-520.0, 540.0);
 const FISH_STACK_HEIGHT: f32 = 15.0;
-const STACK_POS: Vec3 = Vec3::new(-1200.0, 300.0, -1.0);
+const STACK_POS: Vec3 = Vec3::new(-1100.0, 300.0, -1.0);
 const FISH_PER_LEVEL: usize = 10;
-const WINDOW_SIZE: Vec2 = Vec2::new(1200.0, 850.0);
+const WINDOW_SIZE: Vec2 = Vec2::new(1100.0, 800.0);
 const BITE_DISTANCE: f32 = 30.0;
 const FISH_VELOCITY: f32 = 500.0;
 
@@ -38,6 +38,7 @@ fn main() {
             primary_window: Some(Window {
                 title: "GO FISH".to_string(),
                 resolution: WindowResolution::new(WINDOW_SIZE.x, WINDOW_SIZE.y).with_scale_factor_override(0.4),
+                position: WindowPosition::Centered(MonitorSelection::Primary),
                 ..default()
             }),
             ..default()
@@ -310,17 +311,21 @@ fn add_fish(
     mut commands: Commands,
 ) {
     let fish_atlas_handle = images.fish_atlas_handle.as_ref().expect("Images should be loaded");
-    let box_width = WATER_SIZE.x * 0.9;
-    let box_height = WATER_SIZE.y * 0.9;
+    let height_offset = 100.0;
+
+    let box_width = WATER_SIZE.x;
+    let box_height = WATER_SIZE.y - height_offset;
     let lane_height = box_height / FISH_PER_LEVEL as f32;
     let mut rng = rand::thread_rng();
-    let mut fish_indexes: Vec<usize> = (0..FISH_PER_LEVEL).collect();
-    fish_indexes.sort_by_key(|_| (rng.gen::<f32>() * FISH_PER_LEVEL as f32 * 1000.0) as usize);
-    for (pos_index, fish_index) in fish_indexes.iter().enumerate() {
+    let mut fish_and_sort: Vec<(usize, usize)> = (0..FISH_PER_LEVEL).map(|f| (f, (rng.gen::<f32>() * FISH_PER_LEVEL as f32 * 1000.0) as usize)).collect();
+    println!("{:?}", fish_and_sort);
+    fish_and_sort.sort_by_key(|(_, key)| *key);
+    //fish_indexes.sort_by_key(|_| (rng.gen::<f32>() * FISH_PER_LEVEL as f32 * 1000.0) as usize);
+    for (pos_index, fish_index) in fish_and_sort.iter().map(|(item, _)| item).enumerate() {
         let fish_size = FISH_ATLAS_SIZES[*fish_index];
         let fish_half_width = (fish_size - 1) as f32 * 20.0 + 30.0;
         let pos_x = rng.gen::<f32>() * box_width - (box_width / 2.0) + WATER_POS.x;
-        let pos_y = WATER_POS.y - box_height / 2.0 + lane_height * pos_index as f32 + rng.gen::<f32>() * lane_height * 0.8;
+        let pos_y = WATER_POS.y - (box_height - height_offset) / 2.0 - height_offset + lane_height * pos_index as f32 + rng.gen::<f32>() * lane_height * 0.8;
         commands.spawn((
             SpriteSheetBundle {
                 texture_atlas: fish_atlas_handle.clone(),
@@ -665,7 +670,6 @@ fn handle_fish_landed_in_stack(
                         GRAVITY, 
                         WATER_DRAG_Y, 
                         time.elapsed_seconds());
-                    println!("{:?}", return_val);
                     commands.entity(*fish_entity).remove::<InCatchStack>();
                     commands.entity(*fish_entity).insert(return_val);
                     indexes_to_remove.push(item_index);
@@ -675,8 +679,6 @@ fn handle_fish_landed_in_stack(
         for index in indexes_to_remove {
             catch_stack.fish[index] = None;
         }
-        println!("pre-collapse: {:?}", catch_stack.fish);
-
         let mut insert_offset = 0;
         let mut first_empty_slot = 0;
         for i in 0..catch_stack.fish.len() {
@@ -692,7 +694,6 @@ fn handle_fish_landed_in_stack(
             }
         }
         catch_stack.fish[first_empty_slot] = Some((event.entity, event.fish_size, event.return_lane_y));
-        println!("post-collapse: {:?}", catch_stack.fish);
 
         commands.entity(event.entity).remove::<Handle<TextureAtlas>>();
         commands.entity(event.entity).insert((
@@ -705,10 +706,12 @@ fn handle_fish_landed_in_stack(
 fn calculate_return_position(
     lane_y: f32,
 ) -> Vec2 {
-    const MIN_LEFT_X: f32 = WATER_POS.x;
-    const WATER_BOTTOM_Y: f32 = WATER_POS.y - WATER_SIZE.y / 2.0;
-    let del_y = lane_y - WATER_BOTTOM_Y;
-    let del_x = WATER_SIZE.x * 0.8 * del_y / WATER_SIZE.y;
+    const WATER_SHRINK: f32 = 0.8; //factor to shrink the landing zone by, centered at WATER_POS
+
+    const MIN_LEFT_X: f32 = WATER_POS.x - WATER_SIZE.x / 2.0 * WATER_SHRINK;
+    const WATER_TOP_Y: f32 = WATER_POS.y + WATER_SIZE.y / 2.0;
+    let del_y = WATER_TOP_Y - lane_y ;
+    let del_x = WATER_SIZE.x * WATER_SHRINK * del_y / WATER_SIZE.y;
     Vec2::new(del_x + MIN_LEFT_X, lane_y)
 }
 
@@ -725,21 +728,39 @@ fn calculate_return_path(
     debug_assert_ne!(0.0, gravity_y);
     debug_assert_ne!(0.0, water_drag_y);
 
+    println!("start_x {:?}", start_x);
+    println!("start_y {:?}", start_y);
+    println!("end_x {:?}", end_x);
+    println!("end_y {:?}", end_y);
+    println!("water_y {:?}", water_y);
+    println!("gravity_y {:?}", gravity_y);
+    println!("water_drag_y {:?}", water_drag_y);
+    println!("start_time_s {:?}", start_time_s);
+
     //we need to hit the lane_y, so we need to know what the vel_y is at the water's surface, 
     //so then we can know how high it arcs and what vel we need to start with to hit that apex.
     //working backwards from the final position...
     let time_from_water_to_lane = (2.0 / water_drag_y * (water_y - end_y)).sqrt();
+    println!("time_from_water_to_lane {:?}", time_from_water_to_lane);
     let water_entrance_vel_y = water_drag_y * time_from_water_to_lane;
+    println!("water_entrance_vel_y {:?}", water_entrance_vel_y);
     let time_from_apex_to_water = water_entrance_vel_y / gravity_y;
+    println!("time_from_apex_to_water {:?}", time_from_apex_to_water);
     let apex_pos_y = water_y + time_from_apex_to_water * time_from_apex_to_water * gravity_y / 2.0;
+    println!("apex_pos_y {:?}", apex_pos_y);
     let time_to_apex = (2.0 / gravity_y * (apex_pos_y - start_y)).sqrt();
+    println!("time_to_apex {:?}", time_to_apex);
     let total_time = 
         time_to_apex 
         + time_from_apex_to_water 
         + time_from_water_to_lane;
+    println!("total_time {:?}", total_time);
     let start_vel_x = (end_x - start_x) / total_time;
+    println!("start_vel_x {:?}", start_vel_x);
     let start_vel_y = gravity_y * time_to_apex;
+    println!("start_vel_y {:?}", start_vel_y);
     let water_pos_x = end_x - (time_from_water_to_lane * start_vel_x);
+    println!("water_pos_x {:?}", water_pos_x);
     ReturningToWater { 
         start_vel: Vec2::new(start_vel_x, start_vel_y), 
         water_entrance_vel: Vec2::new(start_vel_x, -water_entrance_vel_y),

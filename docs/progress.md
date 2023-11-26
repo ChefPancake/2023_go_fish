@@ -33,10 +33,12 @@ TODO K:
   - circle for now
   - [ ] moves across bottom between rocks
   - [ ] game ends when he travels across
-- [ ] squidge out smaller caught fish if a larger is caught
+- [x] squidge out smaller caught fish if a larger is caught
   - [x] remove from stack if a larger fish is added
-  - [ ] arc them out of the stack
-  - [ ] return them to their original pos.y
+  - [x] arc them out of the stack
+  - [x] return them to their original pos.y
+  - [x] tone down the vel_x
+- [ ] add x drag to water during return
 - [ ] add fish chasing
   - when near and facing the hook, fish will chase it. 
   - fish will stay within lane, leaving the lane will cause the fish to give up and return to original pos.y
