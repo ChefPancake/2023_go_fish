@@ -20,7 +20,7 @@ const FISH_PER_LEVEL: usize = 10;
 const WINDOW_SIZE: Vec2 = Vec2::new(1100.0, 800.0);
 const BITE_DISTANCE: f32 = 30.0;
 const FISH_VELOCITY: f32 = 500.0;
-
+const CRITICAL_TIME: f32 = 0.07;
 const FISH_ATLAS_SIZES: [usize; 10] = [
     10, 5,
     9,  4,
@@ -32,6 +32,11 @@ const FISH_ATLAS_SIZES: [usize; 10] = [
 fn main() {
     App::new()
     .add_event::<FishLandedInStack>()
+    .add_event::<FishCaught>()
+    .add_event::<ReeledToSurface>()
+    .add_event::<HookedFish>()
+    .add_event::<StackCompleted>()
+    .add_event::<FishKnockedOutOfStack>()
     .insert_resource(ClearColor(BACKGROUND_COLOR))
     .insert_resource(ImageHandles::default())
     .add_plugins((
@@ -69,14 +74,25 @@ fn main() {
         move_hook,
         cast_hook,
         turn_hook_pink,
-        reel_in_fish,
+        reel_in,
         draw_fishing_line,
     ).before(catch_fish))
     .add_systems(Update,(
         catch_fish,
-        handle_fish_landed_in_stack))
-    .add_systems(Update, 
-        reset_level.after(catch_fish))
+        handle_fish_landed_in_stack,
+        handle_fish_caught,
+        handle_fish_on_bite,
+        handle_fish_reeled_to_surface,
+        handle_hook_caught_fish,
+        handle_hook_on_bite,
+        handle_hook_reeled_to_surface,
+        handle_fish_knocked_out_of_stack,
+        handle_fish_landed
+    ))
+    .add_systems(Update, (
+        reset_fish,
+        reset_stack,
+    ).after(catch_fish))
     .run();
 }
 
@@ -264,22 +280,35 @@ pub struct FishLandedInStack {
     pub return_lane_y: f32
 }
 
-fn reset_level(
-    mut stack_query: Query<&mut CatchStack>,
+#[derive(Event, Default)]
+pub struct StackCompleted;
+
+fn reset_fish(
+    mut completed_events: EventReader<StackCompleted>,
     fish_query: Query<Entity, With<FishSize>>,
     images: Res<ImageHandles>,
     mut commands: Commands,
 ) {
-    let mut catch_stack = stack_query.single_mut();
-    if catch_stack.total_fish == FISH_PER_LEVEL {
-        catch_stack.total_fish = 0;
-        for item in catch_stack.fish.iter_mut() {
-            *item = None;
-        }
+    if !completed_events.is_empty() {
+        completed_events.clear();
         for fish_entity in &fish_query {
             commands.entity(fish_entity).despawn();
         }
         add_fish(images, commands);
+    }
+}
+
+fn reset_stack(
+    mut completed_events: EventReader<StackCompleted>,
+    mut stack_query: Query<&mut CatchStack>,
+) {
+    if !completed_events.is_empty() {
+        completed_events.clear();
+        let mut catch_stack = stack_query.single_mut();
+        catch_stack.total_fish = 0;
+        for item in catch_stack.fish.iter_mut() {
+            *item = None;
+        }
     }
 }
 
@@ -532,11 +561,16 @@ fn move_hook(
     }
 }
 
+#[derive(Event)]
+pub struct HookedFish {
+    pub hook_entity: Entity,
+    pub fish_entity: Entity,
+}
+
 fn fish_bite_hook(
-    time: Res<Time>,
     fish_query: Query<(Entity, &Transform, &FishMouthPosition), Without<Hooked>>,
     hook_query: Query<(Entity, &Transform), (With<Hook>, Without<NearFish>)>,
-    mut commands: Commands
+    mut on_hook: EventWriter<HookedFish>,
 ) {
     for (hook_entity, hook) in &hook_query {
         for (fish_entity, fish, mouth_pos) in &fish_query {
@@ -546,44 +580,93 @@ fn fish_bite_hook(
                 fish.scale.x,
                 mouth_pos);
             if distance < BITE_DISTANCE {
-                commands.entity(fish_entity).insert(Hooked { hook_time_s: time.elapsed_seconds() });
-                commands.entity(hook_entity).insert(NearFish);
+                on_hook.send(HookedFish { hook_entity, fish_entity });
                 break;
-            } else {
-                commands.entity(fish_entity).remove::<Hooked>();
             }
         }
     }
 }
 
-fn reel_in_fish(
-    mut commands: Commands,
+fn handle_hook_on_bite(
+    mut on_hook: EventReader<HookedFish>,
+    mut commands: Commands
+) {
+    for event in on_hook.iter() {
+        commands.entity(event.hook_entity).insert(NearFish);
+    }
+}
+
+fn handle_fish_on_bite(
     time: Res<Time>,
-    mut fish_query: Query<(Entity, &mut Transform), (With<Reeling>, Without<CatchStack>)>,
-    catch_stack: Query<(&Transform, &CatchStack)>
+    mut on_hook: EventReader<HookedFish>,
+    mut commands: Commands
+) {
+    for event in on_hook.iter() {
+        commands.entity(event.fish_entity).insert(Hooked { hook_time_s: time.elapsed_seconds() });
+    }
+}
+
+#[derive(Event)]
+pub struct ReeledToSurface {
+    pub entity: Entity
+}
+
+fn reel_in(
+    mut reelable_query: Query<(Entity, &mut Transform), (With<Reeling>, Without<CatchStack>)>,
+    time: Res<Time>,
+    mut on_reeled: EventWriter<ReeledToSurface>
 ) {
     let reel_speed = 600.0;
     let upper_boundary = WATER_POS.y + WATER_SIZE.y / 2.0;
-    for (entity, mut fish_pos) in &mut fish_query {
-        //move the fish straight up at reel_speed
-        //if the fish hits the surface, send it flying
+    for (entity, mut pos) in &mut reelable_query {
         let mut hit_surface = false;
-
-        let mut new_y = fish_pos.translation.y + reel_speed * time.delta_seconds();
+        let mut new_y = pos.translation.y + reel_speed * time.delta_seconds();
         if new_y > upper_boundary {
             hit_surface = true;
             new_y = upper_boundary;
         }
-        fish_pos.translation.y = new_y;
+        pos.translation.y = new_y;
         if hit_surface {
-            let (catch_stack_pos, catch_stack) = catch_stack.single();
-            let catch_stack_pos = catch_stack_pos.translation;
-            let catch_stack_pos = Vec3::new(
-                catch_stack_pos.x, 
-                catch_stack_pos.y + (catch_stack.total_fish as f32) * FISH_STACK_HEIGHT,
-                catch_stack_pos.z);
-            commands.entity(entity).remove::<Reeling>();
-            send_fish_to_stack(fish_pos.translation, catch_stack_pos, GRAVITY, time.elapsed_seconds(), &mut commands, entity);
+            on_reeled.send(ReeledToSurface { entity });
+        }
+    }
+}
+
+fn handle_hook_reeled_to_surface(
+    mut on_reeled: EventReader<ReeledToSurface>,
+    mut hook_query: Query<(Entity, &mut Transform), With<Hook>>,
+    mut commands: Commands
+) {
+    for event in on_reeled.iter() {
+        if let Ok((hook_entity, mut hook_pos)) = hook_query.get_single_mut() {
+            if event.entity == hook_entity {
+                commands.entity(hook_entity).remove::<Reeling>();
+                commands.entity(hook_entity).insert(WaitingToBeCast);
+                hook_pos.translation = Vec3::new(LINE_START_POS.x, LINE_START_POS.y, 0.0);
+            }
+        }
+    }
+}
+
+fn handle_fish_reeled_to_surface(
+    mut on_reeled: EventReader<ReeledToSurface>,
+    catch_stack: Query<(&Transform, &CatchStack)>,
+    fish_query: Query<(Entity, &Transform), With<FishSize>>,
+    time: Res<Time>,
+    mut commands: Commands,
+) {
+    let (catch_stack_pos, catch_stack) = catch_stack.single();
+    for event in on_reeled.iter() {
+        for (fish_entity, fish_pos) in &fish_query {
+            if fish_entity == event.entity {
+                let catch_stack_pos = catch_stack_pos.translation;
+                let catch_stack_pos = Vec3::new(
+                    catch_stack_pos.x, 
+                    catch_stack_pos.y + (catch_stack.total_fish as f32) * FISH_STACK_HEIGHT,
+                    catch_stack_pos.z);
+                commands.entity(event.entity).remove::<Reeling>();
+                send_fish_to_stack(fish_pos.translation, catch_stack_pos, GRAVITY, time.elapsed_seconds(), &mut commands, event.entity);
+            }
         }
     }
 }
@@ -601,35 +684,56 @@ fn send_fish_to_stack(fish_pos: Vec3, catch_stack_pos: Vec3, gravity: f32, elaps
     commands.entity(entity).insert(flying);
 }
 
+#[derive(Event)]
+pub struct FishCaught {
+    pub fish_entity: Entity,
+    pub hook_entity: Entity,
+    pub is_critical: bool
+}
+
 fn catch_fish(
-    mut commands: Commands,
     input: Res<Input<KeyCode>>,
     time: Res<Time>,
-    fish_query: Query<(Entity, &Hooked, &Transform)>,
-    catch_stack: Query<(&Transform, &CatchStack)>,
+    fish_query: Query<(Entity, &Hooked)>,
     hook_query: Query<Entity, (With<Hook>, With<NearFish>)>,
+    mut on_catch: EventWriter<FishCaught>,
+    mut on_critical: EventWriter<ReeledToSurface>
 ) {
-    let critical_time = 0.07;
     if let Ok(hook_entity) = hook_query.get_single() {
-        if input.just_pressed(KeyCode::Space) {
-            commands.entity(hook_entity).remove::<NearFish>();
-            let (catch_stack_pos, catch_stack) = catch_stack.single();
-            for (entity, hooked, fish_pos) in &fish_query {
-                commands.entity(entity).remove::<(Hooked, FishMovement, FishMouthPosition, Velocity)>();
+        if let Ok((fish_entity, hooked)) = fish_query.get_single() {
+            if input.just_pressed(KeyCode::Space) {
                 let react_time = time.elapsed_seconds() - hooked.hook_time_s;
-                if react_time < critical_time {
-                    let catch_stack_pos = catch_stack_pos.translation;
-                    let catch_stack_pos = Vec3::new(
-                        catch_stack_pos.x, 
-                        catch_stack_pos.y + (catch_stack.total_fish as f32) * FISH_STACK_HEIGHT,
-                        catch_stack_pos.z);
-                    send_fish_to_stack(fish_pos.translation, catch_stack_pos, GRAVITY, time.elapsed_seconds(), &mut commands, entity)
-                } else {
-                    commands.entity(entity).insert(Reeling);
-                    commands.entity(hook_entity).insert(Reeling);
-                    commands.entity(hook_entity).remove::<HookInWater>();
+                let is_critical = react_time < CRITICAL_TIME;
+                on_catch.send(FishCaught { fish_entity, hook_entity, is_critical });
+                if react_time < CRITICAL_TIME {
+                    on_critical.send(ReeledToSurface { entity: fish_entity });
+                    on_critical.send(ReeledToSurface { entity: hook_entity });
                 }
             }
+        }
+    }
+}
+
+fn handle_fish_caught(
+    mut on_caught: EventReader<FishCaught>,
+    mut commands: Commands
+) {
+    for event in on_caught.iter() {
+        commands.entity(event.fish_entity).remove::<(Hooked, FishMovement, FishMouthPosition, Velocity)>();
+        if !event.is_critical {
+            commands.entity(event.fish_entity).insert(Reeling);
+        }
+    }
+}
+
+fn handle_hook_caught_fish(
+    mut on_caught: EventReader<FishCaught>,
+    mut commands: Commands
+) {
+    for event in on_caught.iter() {
+        commands.entity(event.hook_entity).remove::<(NearFish, HookInWater)>();
+        if !event.is_critical {
+            commands.entity(event.hook_entity).insert(Reeling);
         }
     }
 }
@@ -670,7 +774,6 @@ fn interpolate_casting_arc(
             commands.entity(entity).remove::<CastingHook>();
             commands.entity(entity).insert(HookInWater);
             transform.translation = Vec3::new(casting.end_pos.x, casting.end_pos.y, transform.translation.z);
-            transform.scale = Vec3::new(1.0, 1.0, 1.0);
         } else {
             let elapsed = time.elapsed_seconds() - casting.start_time_s;
             let new_pos_x = casting.start_pos.x + (elapsed * casting.start_vel.x);
@@ -720,33 +823,68 @@ fn interpolate_returning_to_water_arcs(
     }
 }
 
-fn handle_fish_landed_in_stack(
+fn handle_fish_landed(
     mut on_land: EventReader<FishLandedInStack>,
     images: Res<ImageHandles>,
-    mut catch_stack_query: Query<(&Transform, &mut CatchStack)>,
-    time: Res<Time>,
-    mut commands: Commands,
+    mut commands: Commands
 ) {
-    for event in on_land.iter() {        
+    for event in on_land.iter() {
+        commands.entity(event.entity).remove::<Handle<TextureAtlas>>();
+        commands.entity(event.entity).insert((
+            images.stack_atlas_handle.as_ref().expect("Images should be loaded").clone(),
+            InCatchStack
+        ));
+    }
+}
+
+#[derive(Event)]
+pub struct FishKnockedOutOfStack {
+    pub fish_entity: Entity,
+    pub stack_position: Vec2
+}
+
+fn handle_fish_knocked_out_of_stack(
+    mut on_knocked_out: EventReader<FishKnockedOutOfStack>,
+    fish_query: Query<(Entity, &FishLanePos), With<InCatchStack>>,
+    time: Res<Time>,
+    mut commands: Commands
+) {
+    for event in on_knocked_out.iter() {
+        for (fish_entity, lane_pos) in &fish_query {
+            let water_y = WATER_POS.y + WATER_SIZE.y / 2.0;
+            let return_pos = calculate_return_position(lane_pos.pos_y);
+            let return_val = calculate_return_path(
+                event.stack_position.x, 
+                event.stack_position.y, 
+                return_pos.x, 
+                return_pos.y, 
+                water_y, 
+                GRAVITY, 
+                WATER_DRAG_Y, 
+                time.elapsed_seconds());
+            commands.entity(fish_entity).remove::<InCatchStack>();
+            commands.entity(fish_entity).insert(return_val);
+        }
+    }
+}
+
+fn handle_fish_landed_in_stack(
+    mut on_land: EventReader<FishLandedInStack>,
+    mut catch_stack_query: Query<(&Transform, &mut CatchStack)>,
+    mut on_fish_kod: EventWriter<FishKnockedOutOfStack>,
+    mut on_complete: EventWriter<StackCompleted>,
+) {
+    for event in on_land.iter() {
         let (catch_stack_pos, mut catch_stack) = catch_stack_query.single_mut();
         let mut indexes_to_remove = Vec::<usize>::new();
         for (item_index, item) in catch_stack.fish.iter().enumerate() {
-            if let Some((fish_entity, size, lane_pos_y)) = item.as_ref() {
+            if let Some((fish_entity, size, _)) = item.as_ref() {
                 if *size < event.fish_size {
                     let start_pos_y = catch_stack_pos.translation.y + item_index as f32 * FISH_STACK_HEIGHT;
-                    let water_y = WATER_POS.y + WATER_SIZE.y / 2.0;
-                    let return_pos = calculate_return_position(*lane_pos_y);
-                    let return_val = calculate_return_path(
-                        catch_stack_pos.translation.x, 
-                        start_pos_y, 
-                        return_pos.x, 
-                        return_pos.y, 
-                        water_y, 
-                        GRAVITY, 
-                        WATER_DRAG_Y, 
-                        time.elapsed_seconds());
-                    commands.entity(*fish_entity).remove::<InCatchStack>();
-                    commands.entity(*fish_entity).insert(return_val);
+                    on_fish_kod.send(FishKnockedOutOfStack { 
+                        fish_entity: *fish_entity,
+                        stack_position: Vec2::new(catch_stack_pos.translation.x, start_pos_y) 
+                    });
                     indexes_to_remove.push(item_index);
                 }
             }
@@ -771,11 +909,9 @@ fn handle_fish_landed_in_stack(
         }
         catch_stack.fish[first_empty_slot] = Some((event.entity, event.fish_size, event.return_lane_y));
 
-        commands.entity(event.entity).remove::<Handle<TextureAtlas>>();
-        commands.entity(event.entity).insert((
-            images.stack_atlas_handle.as_ref().expect("Images should be loaded").clone(),
-            InCatchStack
-        ));
+        if catch_stack.total_fish == FISH_PER_LEVEL {
+            on_complete.send_default();
+        }
     }
 }
 
