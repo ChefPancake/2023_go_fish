@@ -1,4 +1,4 @@
-TODO:
+TODO K:
 - [ ] Animate fish
   - [x] movement in short bursts
   - [x] staying in certain zone
@@ -33,13 +33,40 @@ TODO:
   - circle for now
   - [ ] moves across bottom between rocks
   - [ ] game ends when he travels across
-
+- [ ] squidge out smaller caught fish if a larger is caught
+  - [x] remove from stack if a larger fish is added
+  - [ ] arc them out of the stack
+  - [ ] return them to their original pos.y
+- [ ] add fish chasing
+  - when near and facing the hook, fish will chase it. 
+  - fish will stay within lane, leaving the lane will cause the fish to give up and return to original pos.y
+- [ ] add casting
+  - [ ] hook starts out of water
+  - [ ] press space to cast
+    - goes to center of water
+    - maybe add holding space to cast nearer or farther? might be unnecessary
+- [ ] line updates
+  - [ ] add offsets for each bear frame
+  - [ ] tighten line when reeling
+  - [ ] when reeling, move fish.x slightly towards bear.x (towards centroid)
+- [ ] animate bear
+  - [ ] before casting, switch to cast frame
+  - [ ] when hook in air, switch to fishing frame
+  - [ ] when reeling, switch to reel frame
+  - [ ] critical catch
+    - [ ] hitstop
+      - freeze all fish: swimming, reeling, and flying
+    - [ ] alternate two critical frames N times
+  - [ ] when caught fish goes flying, switch to catch frame
 
 ---
 
-For Em:
+TODO E:
 - Fix bear spot perspective
 - add stump
 - flatten/lower water
 - move stack spot away from edge
 - name game
+- need bear frames
+  - idle? maybe
+  - cast throw

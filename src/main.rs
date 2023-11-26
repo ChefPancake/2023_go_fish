@@ -8,7 +8,9 @@ use rand::prelude::*;
 const BACKGROUND_COLOR: Color = Color::rgb(0.1, 0.1, 0.1);
 const WATER_SIZE: Vec2 = Vec2::new(1450.0, 1200.0);
 const WATER_POS: Vec2 = Vec2::new(365.0, -250.0);
-const GRAVITY: f32 = 6000.0;
+const GRAVITY: f32 = 2000.0;
+const WATER_DRAG_Y: f32 = 2000.0;
+const WATER_DRAG_X: f32 = 100.0;
 const LINE_START_POS: Vec2 = Vec2::new(-290.0, 638.0);
 const BEAR_POS: Vec2 = Vec2::new(-520.0, 540.0);
 const FISH_STACK_HEIGHT: f32 = 15.0;
@@ -16,6 +18,7 @@ const STACK_POS: Vec3 = Vec3::new(-1200.0, 300.0, -1.0);
 const FISH_PER_LEVEL: usize = 10;
 const WINDOW_SIZE: Vec2 = Vec2::new(1200.0, 850.0);
 const BITE_DISTANCE: f32 = 30.0;
+const FISH_VELOCITY: f32 = 500.0;
 
 const FISH_ATLAS_SIZES: [usize; 10] = [
     10, 5,
@@ -25,9 +28,9 @@ const FISH_ATLAS_SIZES: [usize; 10] = [
     6,  1,
 ];
 
-
 fn main() {
     App::new()
+    .add_event::<FishLandedInStack>()
     .insert_resource(ClearColor(BACKGROUND_COLOR))
     .insert_resource(ImageHandles::default())
     .add_plugins((
@@ -54,6 +57,7 @@ fn main() {
     .add_systems(Update, (
         bevy::window::close_on_esc,
         interpolate_flying_arc,
+        interpolate_returning_to_water_arcs,
         fish_bite_hook,
         apply_fish_movement,
         apply_velocity,
@@ -64,8 +68,9 @@ fn main() {
         reel_in_fish,
         draw_fishing_line,
     ).before(catch_fish))
-    .add_systems(Update,
-        catch_fish)
+    .add_systems(Update,(
+        catch_fish,
+        handle_fish_landed_in_stack))
     .add_systems(Update, 
         reset_level.after(catch_fish))
     .run();
@@ -166,6 +171,20 @@ pub struct Flying {
 }
 
 #[derive(Component, Debug)]
+pub struct ReturningToWater {
+    pub start_vel: Vec2,
+    pub water_entrance_vel: Vec2,
+    pub start_pos: Vec2,
+    pub water_entrance_pos: Vec2,
+    pub end_pos: Vec2,
+    pub start_time_s: f32,
+    pub water_entrance_time_s: f32,
+    pub end_time_s: f32,
+    pub gravity: f32,
+    pub water_drag: f32,
+}
+
+#[derive(Component, Debug)]
 pub struct Reeling;
 
 #[derive(Component)]
@@ -180,6 +199,11 @@ pub struct Velocity {
 pub struct FishBoundaries {
     pub min_x: f32,
     pub max_x: f32
+}
+
+#[derive(Component)]
+pub struct FishLanePos {
+    pub pos_y: f32
 }
 
 #[derive(Component)]
@@ -198,9 +222,26 @@ pub struct FishMouthPosition {
     pub offset_y: f32,
 }
 
+#[derive(Component)]
+pub struct FishSize {
+    pub size: usize
+}
+
 #[derive(Component, Default)]
 pub struct CatchStack {
-    pub total_fish: usize
+    pub total_fish: usize,
+    pub fish: [Option<(Entity, usize, f32)>; FISH_PER_LEVEL]
+}
+
+#[derive(Component)]
+pub struct InCatchStack;
+
+#[derive(Event)]
+pub struct FishLandedInStack {
+    pub entity: Entity,
+    pub fish_size: usize,
+    pub position: Vec2,
+    pub return_lane_y: f32
 }
 
 fn reset_level(
@@ -250,6 +291,20 @@ fn add_catch_stack(
     );
 }
 
+fn build_fish_movement_timer(rng: &mut ThreadRng) -> Timer {
+    let mut timer = Timer::from_seconds(rng.gen::<f32>() * 6.0 + 3.0, TimerMode::Repeating);
+    timer.tick(Duration::from_secs_f32(rng.gen::<f32>() * 9.0));
+    timer
+}
+
+fn build_fish_mouth_position(fish_size: usize) -> FishMouthPosition {
+    let fish_half_width = (fish_size - 1) as f32 * 20.0 + 30.0;
+    FishMouthPosition {
+        offset_x: fish_half_width,
+        offset_y: 20.0
+    }
+}
+
 fn add_fish(
     images: Res<ImageHandles>,
     mut commands: Commands,
@@ -261,15 +316,11 @@ fn add_fish(
     let mut rng = rand::thread_rng();
     let mut fish_indexes: Vec<usize> = (0..FISH_PER_LEVEL).collect();
     fish_indexes.sort_by_key(|_| (rng.gen::<f32>() * FISH_PER_LEVEL as f32 * 1000.0) as usize);
-    println!("{:?}", fish_indexes);
     for (pos_index, fish_index) in fish_indexes.iter().enumerate() {
-        println!("{:?}", pos_index);
-        println!("{:?}", fish_index);
-        let fish_half_width = (FISH_ATLAS_SIZES[*fish_index] - 1) as f32 * 20.0 + 30.0;
+        let fish_size = FISH_ATLAS_SIZES[*fish_index];
+        let fish_half_width = (fish_size - 1) as f32 * 20.0 + 30.0;
         let pos_x = rng.gen::<f32>() * box_width - (box_width / 2.0) + WATER_POS.x;
         let pos_y = WATER_POS.y - box_height / 2.0 + lane_height * pos_index as f32 + rng.gen::<f32>() * lane_height * 0.8;
-        let mut timer = Timer::from_seconds(rng.gen::<f32>() * 6.0 + 3.0, TimerMode::Repeating);
-        timer.tick(Duration::from_secs_f32(rng.gen::<f32>() * 9.0));
         commands.spawn((
             SpriteSheetBundle {
                 texture_atlas: fish_atlas_handle.clone(),
@@ -278,16 +329,13 @@ fn add_fish(
                     Vec3::new(
                         pos_x, 
                         pos_y, 
-                        -(FISH_ATLAS_SIZES[*fish_index] as f32))),
+                        -(fish_size as f32))),
                 ..default()
             },
-            FishMouthPosition {
-                offset_x: fish_half_width,
-                offset_y: 20.0
-            },
+            build_fish_mouth_position(fish_size),
             FishMovement {
-                next_move_time: timer,
-                vel_to_apply: 250.0
+                next_move_time: build_fish_movement_timer(&mut rng),
+                vel_to_apply: FISH_VELOCITY
             },
             FishBoundaries {
                 min_x: -WATER_SIZE.x / 2.0 + WATER_POS.x + fish_half_width,
@@ -301,11 +349,17 @@ fn add_fish(
                 dash_anim_time_s: 0.2,
                 reset_anim_time_s: 2.0,
             },
+            FishLanePos {
+                pos_y
+            },
+            FishSize {
+                size: fish_size,
+            },
             Velocity {
                 x: 0.0,
                 y: 0.0,
-                drag_x: 25.0,
-                drag_y: 1000.0
+                drag_x: WATER_DRAG_X,
+                drag_y: WATER_DRAG_Y
             }
         ));
     }
@@ -523,14 +577,18 @@ fn catch_fish(
 fn interpolate_flying_arc(
     mut commands: Commands,
     time: Res<Time>,
-    images: Res<ImageHandles>,
-    mut flying_query: Query<(Entity, &mut Transform, &Flying)>
+    mut on_land: EventWriter<FishLandedInStack>,
+    mut flying_query: Query<(Entity, &mut Transform, &Flying, &FishSize, &FishLanePos)>
 ) {
-    for (entity, mut transform, flying) in &mut flying_query {
+    for (entity, mut transform, flying, size, lane_pos) in &mut flying_query {
         if time.elapsed_seconds() > flying.end_time_s {
-            //TODO: K: move sprite change behind an event
-            commands.entity(entity).remove::<(Flying, Handle<TextureAtlas>)>();
-            commands.entity(entity).insert(images.stack_atlas_handle.as_ref().expect("Images should be loaded").clone());
+            commands.entity(entity).remove::<Flying>();
+            on_land.send(FishLandedInStack { 
+                entity, 
+                fish_size: size.size, 
+                position: flying.end_pos,
+                return_lane_y: lane_pos.pos_y 
+            });
             transform.translation = Vec3::new(flying.end_pos.x, flying.end_pos.y, transform.translation.z);
             transform.scale = Vec3::new(1.0, 1.0, 1.0);
         } else {
@@ -539,6 +597,160 @@ fn interpolate_flying_arc(
             let new_pos_y = flying.start_pos.y + (elapsed * flying.start_vel.y) - (flying.gravity * elapsed * elapsed / 2.0 );
             transform.translation = Vec3::new(new_pos_x, new_pos_y, transform.translation.z);
         }
+    }
+}
+
+fn interpolate_returning_to_water_arcs(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut returning_query: Query<(Entity, &mut Transform, &ReturningToWater, &FishSize)>,
+    images: Res<ImageHandles>
+) {
+    for (entity, mut transform, returning, size) in &mut returning_query {
+        let mut rng = rand::thread_rng();
+        if time.elapsed_seconds() > returning.end_time_s {
+            commands.entity(entity).remove::<(ReturningToWater, Handle<TextureAtlas>)>();
+            commands.entity(entity).insert((
+                Velocity { 
+                    x: returning.start_vel.x,
+                    y: 0.0,
+                    drag_x: WATER_DRAG_X,
+                    drag_y: WATER_DRAG_Y
+                },
+                FishMovement {
+                    next_move_time: build_fish_movement_timer(&mut rng),
+                    vel_to_apply: FISH_VELOCITY
+                },
+                build_fish_mouth_position(size.size),
+                images.fish_atlas_handle.as_ref().expect("Images should be loaded").clone()
+            ));
+            transform.translation = Vec3::new(returning.end_pos.x, returning.end_pos.y, transform.translation.z);
+            transform.scale = Vec3::new(1.0, 1.0, 1.0);
+        } else if time.elapsed_seconds() > returning.water_entrance_time_s {
+            let elapsed = time.elapsed_seconds() - returning.water_entrance_time_s;
+            let new_pos_x = returning.water_entrance_pos.x + (elapsed * returning.water_entrance_vel.x);
+            let new_pos_y = returning.water_entrance_pos.y + (elapsed * returning.water_entrance_vel.y) + (returning.water_drag * elapsed * elapsed / 2.0);
+            transform.translation = Vec3::new(new_pos_x, new_pos_y, transform.translation.z);
+        } else {
+            let elapsed = time.elapsed_seconds() - returning.start_time_s;
+            let new_pos_x = returning.start_pos.x + (elapsed * returning.start_vel.x);
+            let new_pos_y = returning.start_pos.y + (elapsed * returning.start_vel.y) - (returning.gravity * elapsed * elapsed / 2.0);
+            transform.translation = Vec3::new(new_pos_x, new_pos_y, transform.translation.z);
+        }
+    }
+}
+
+fn handle_fish_landed_in_stack(
+    mut on_land: EventReader<FishLandedInStack>,
+    images: Res<ImageHandles>,
+    mut catch_stack_query: Query<(&Transform, &mut CatchStack)>,
+    time: Res<Time>,
+    mut commands: Commands,
+) {
+    for event in on_land.iter() {        
+        let (catch_stack_pos, mut catch_stack) = catch_stack_query.single_mut();
+        let mut indexes_to_remove = Vec::<usize>::new();
+        for (item_index, item) in catch_stack.fish.iter().enumerate() {
+            if let Some((fish_entity, size, lane_pos_y)) = item.as_ref() {
+                if *size < event.fish_size {
+                    let start_pos_y = catch_stack_pos.translation.y + item_index as f32 * FISH_STACK_HEIGHT;
+                    let water_y = WATER_POS.y + WATER_SIZE.y / 2.0;
+                    let return_pos = calculate_return_position(*lane_pos_y);
+                    let return_val = calculate_return_path(
+                        catch_stack_pos.translation.x, 
+                        start_pos_y, 
+                        return_pos.x, 
+                        return_pos.y, 
+                        water_y, 
+                        GRAVITY, 
+                        WATER_DRAG_Y, 
+                        time.elapsed_seconds());
+                    println!("{:?}", return_val);
+                    commands.entity(*fish_entity).remove::<InCatchStack>();
+                    commands.entity(*fish_entity).insert(return_val);
+                    indexes_to_remove.push(item_index);
+                }
+            }
+        }
+        for index in indexes_to_remove {
+            catch_stack.fish[index] = None;
+        }
+        println!("pre-collapse: {:?}", catch_stack.fish);
+
+        let mut insert_offset = 0;
+        let mut first_empty_slot = 0;
+        for i in 0..catch_stack.fish.len() {
+            if catch_stack.fish[i].is_none() {
+                insert_offset += 1;
+            } else if insert_offset > 0 {
+                debug_assert!(insert_offset <= i);
+                catch_stack.fish[i - insert_offset] = catch_stack.fish[i];
+                catch_stack.fish[i] = None;
+                first_empty_slot = i + 1;
+            } else {
+                first_empty_slot = i + 1;
+            }
+        }
+        catch_stack.fish[first_empty_slot] = Some((event.entity, event.fish_size, event.return_lane_y));
+        println!("post-collapse: {:?}", catch_stack.fish);
+
+        commands.entity(event.entity).remove::<Handle<TextureAtlas>>();
+        commands.entity(event.entity).insert((
+            images.stack_atlas_handle.as_ref().expect("Images should be loaded").clone(),
+            InCatchStack
+        ));
+    }
+}
+
+fn calculate_return_position(
+    lane_y: f32,
+) -> Vec2 {
+    const MIN_LEFT_X: f32 = WATER_POS.x;
+    const WATER_BOTTOM_Y: f32 = WATER_POS.y - WATER_SIZE.y / 2.0;
+    let del_y = lane_y - WATER_BOTTOM_Y;
+    let del_x = WATER_SIZE.x * 0.8 * del_y / WATER_SIZE.y;
+    Vec2::new(del_x + MIN_LEFT_X, lane_y)
+}
+
+fn calculate_return_path(
+    start_x: f32,
+    start_y: f32,
+    end_x: f32,
+    end_y: f32,
+    water_y: f32,
+    gravity_y: f32,
+    water_drag_y: f32,
+    start_time_s: f32
+) -> ReturningToWater {
+    debug_assert_ne!(0.0, gravity_y);
+    debug_assert_ne!(0.0, water_drag_y);
+
+    //we need to hit the lane_y, so we need to know what the vel_y is at the water's surface, 
+    //so then we can know how high it arcs and what vel we need to start with to hit that apex.
+    //working backwards from the final position...
+    let time_from_water_to_lane = (2.0 / water_drag_y * (water_y - end_y)).sqrt();
+    let water_entrance_vel_y = water_drag_y * time_from_water_to_lane;
+    let time_from_apex_to_water = water_entrance_vel_y / gravity_y;
+    let apex_pos_y = water_y + time_from_apex_to_water * time_from_apex_to_water * gravity_y / 2.0;
+    let time_to_apex = (2.0 / gravity_y * (apex_pos_y - start_y)).sqrt();
+    let total_time = 
+        time_to_apex 
+        + time_from_apex_to_water 
+        + time_from_water_to_lane;
+    let start_vel_x = (end_x - start_x) / total_time;
+    let start_vel_y = gravity_y * time_to_apex;
+    let water_pos_x = end_x - (time_from_water_to_lane * start_vel_x);
+    ReturningToWater { 
+        start_vel: Vec2::new(start_vel_x, start_vel_y), 
+        water_entrance_vel: Vec2::new(start_vel_x, -water_entrance_vel_y),
+        start_pos: Vec2::new(start_x, start_y),
+        water_entrance_pos: Vec2::new(water_pos_x, water_y),
+        end_pos: Vec2::new(end_x, end_y),
+        start_time_s,
+        water_entrance_time_s: start_time_s + time_to_apex + time_from_apex_to_water,
+        end_time_s: start_time_s + total_time,
+        gravity: gravity_y,
+        water_drag: water_drag_y
     }
 }
 
