@@ -12,6 +12,7 @@ const GRAVITY: f32 = 6000.0;
 const WATER_DRAG_Y: f32 = 4000.0;
 const WATER_DRAG_X: f32 = 100.0;
 const LINE_START_POS: Vec2 = Vec2::new(-290.0, 638.0);
+const CAST_TARGET_POS: Vec2 = Vec2::new(300.0, 0.0);
 const BEAR_POS: Vec2 = Vec2::new(-520.0, 540.0);
 const FISH_STACK_HEIGHT: f32 = 15.0;
 const STACK_POS: Vec3 = Vec3::new(-1100.0, 300.0, -1.0);
@@ -59,12 +60,14 @@ fn main() {
         bevy::window::close_on_esc,
         interpolate_flying_arc,
         interpolate_returning_to_water_arcs,
+        interpolate_casting_arc,
         fish_bite_hook,
         apply_fish_movement,
         apply_velocity,
         apply_fish_boundaries,
         apply_fish_animation,
         move_hook,
+        cast_hook,
         turn_hook_pink,
         reel_in_fish,
         draw_fishing_line,
@@ -184,6 +187,22 @@ pub struct ReturningToWater {
     pub gravity: f32,
     pub water_drag: f32,
 }
+
+#[derive(Component, Debug)]
+pub struct CastingHook {
+    pub start_vel: Vec2,
+    pub gravity: f32,
+    pub start_pos: Vec2,
+    pub end_pos: Vec2,
+    pub start_time_s: f32,
+    pub end_time_s: f32
+}
+
+#[derive(Component, Debug)]
+pub struct HookInWater;
+
+#[derive(Component, Debug)]
+pub struct WaitingToBeCast;
 
 #[derive(Component, Debug)]
 pub struct Reeling;
@@ -454,7 +473,7 @@ fn add_hook(
             texture: asset_server.load("hook.png"),
             transform: 
                 Transform { 
-                    translation: Vec3::new(300.0, 0.0, 0.0),
+                    translation: Vec3::new(LINE_START_POS.x, LINE_START_POS.y, 0.0),
                     scale: Vec3::new(2.0, 2.0, 1.0),
                     ..default()
                 },
@@ -462,21 +481,50 @@ fn add_hook(
         },
         Hook {
             move_speed: 300.0
-        }
+        },
+        WaitingToBeCast
     ));
 }
 
+fn cast_hook(
+    hook_query: Query<Entity, (With<Hook>, With<WaitingToBeCast>)>,
+    input: Res<Input<KeyCode>>,
+    time: Res<Time>,
+    mut commands: Commands
+) {
+    for entity in &hook_query {
+        if input.just_released(KeyCode::Space) {
+            commands.entity(entity).remove::<WaitingToBeCast>();
+            let (initial_vel, arc_time) = calculate_time_and_initial_vel_for_arc(
+                LINE_START_POS.x,
+                LINE_START_POS.y,
+                CAST_TARGET_POS.x,
+                CAST_TARGET_POS.y,
+                GRAVITY,
+                900.0 //TODO: K: make constant
+            );
+            commands.entity(entity).insert(CastingHook {
+                start_vel: initial_vel,
+                gravity: GRAVITY,
+                start_pos: LINE_START_POS,
+                end_pos: CAST_TARGET_POS,
+                start_time_s: time.elapsed_seconds(),
+                end_time_s: time.elapsed_seconds() + arc_time,
+            });
+        }
+    }
+}
+
 fn move_hook(
-    mut query: Query<(&mut Transform, &Hook), Without<NearFish>>,
+    mut query: Query<(&mut Transform, &Hook), (With<HookInWater>, Without<NearFish>)>,
     input: Res<Input<KeyCode>>,
     time: Res<Time>
 ) {
     let up_pressed = input.pressed(KeyCode::W) || input.pressed(KeyCode::Up);
     let down_pressed = input.pressed(KeyCode::S) || input.pressed(KeyCode::Down);
-    let y_vel = (if up_pressed { 1.0 } else { 0.0 } + if down_pressed { -1.0 } else { 0.0 });
-    let y_del = y_vel * time.delta_seconds();
-    
     for (mut transform, hook) in &mut query {
+        let y_vel = (if up_pressed { 1.0 } else { 0.0 } + if down_pressed { -1.0 } else { 0.0 });
+        let y_del = y_vel * time.delta_seconds();
         let new_y = transform.translation.y + y_del * hook.move_speed;
         let water_top = WATER_POS.y + WATER_SIZE.y / 2.0 - 100.0;
         let water_bottom = WATER_POS.y - WATER_SIZE.y / 2.0;
@@ -558,14 +606,14 @@ fn catch_fish(
     input: Res<Input<KeyCode>>,
     time: Res<Time>,
     fish_query: Query<(Entity, &Hooked, &Transform)>,
-    mut catch_stack: Query<(&Transform, &mut CatchStack)>,
+    catch_stack: Query<(&Transform, &CatchStack)>,
     hook_query: Query<Entity, (With<Hook>, With<NearFish>)>,
 ) {
     let critical_time = 0.07;
     if let Ok(hook_entity) = hook_query.get_single() {
         if input.just_pressed(KeyCode::Space) {
             commands.entity(hook_entity).remove::<NearFish>();
-            let (catch_stack_pos, mut catch_stack) = catch_stack.single_mut();
+            let (catch_stack_pos, catch_stack) = catch_stack.single();
             for (entity, hooked, fish_pos) in &fish_query {
                 commands.entity(entity).remove::<(Hooked, FishMovement, FishMouthPosition, Velocity)>();
                 let react_time = time.elapsed_seconds() - hooked.hook_time_s;
@@ -578,6 +626,8 @@ fn catch_fish(
                     send_fish_to_stack(fish_pos.translation, catch_stack_pos, GRAVITY, time.elapsed_seconds(), &mut commands, entity)
                 } else {
                     commands.entity(entity).insert(Reeling);
+                    commands.entity(hook_entity).insert(Reeling);
+                    commands.entity(hook_entity).remove::<HookInWater>();
                 }
             }
         }
@@ -605,6 +655,26 @@ fn interpolate_flying_arc(
             let elapsed = time.elapsed_seconds() - flying.start_time_s;
             let new_pos_x = flying.start_pos.x + (elapsed * flying.start_vel.x);
             let new_pos_y = flying.start_pos.y + (elapsed * flying.start_vel.y) - (flying.gravity * elapsed * elapsed / 2.0 );
+            transform.translation = Vec3::new(new_pos_x, new_pos_y, transform.translation.z);
+        }
+    }
+}
+
+fn interpolate_casting_arc(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut casting_query: Query<(Entity, &mut Transform, &CastingHook)>
+) {
+    for (entity, mut transform, casting) in &mut casting_query {
+        if time.elapsed_seconds() > casting.end_time_s {
+            commands.entity(entity).remove::<CastingHook>();
+            commands.entity(entity).insert(HookInWater);
+            transform.translation = Vec3::new(casting.end_pos.x, casting.end_pos.y, transform.translation.z);
+            transform.scale = Vec3::new(1.0, 1.0, 1.0);
+        } else {
+            let elapsed = time.elapsed_seconds() - casting.start_time_s;
+            let new_pos_x = casting.start_pos.x + (elapsed * casting.start_vel.x);
+            let new_pos_y = casting.start_pos.y + (elapsed * casting.start_vel.y) - (casting.gravity * elapsed * elapsed / 2.0 );
             transform.translation = Vec3::new(new_pos_x, new_pos_y, transform.translation.z);
         }
     }

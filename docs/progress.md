@@ -1,5 +1,5 @@
-TODO K:
-- [ ] Animate fish
+# TODO K:
+- [x] Animate fish
   - [x] movement in short bursts
   - [x] staying in certain zone
   - [x] stretch and squash based on movement
@@ -62,10 +62,10 @@ TODO K:
     - [ ] alternate two critical frames N times
   - [ ] when caught fish goes flying, switch to catch frame
 - [x] reset level when last fish lands on stack and nothing is knocked out
+- [ ] reorganize
+- [ ] refactor interpolation data/funcs
 
----
-
-TODO E:
+# TODO E:
 - Fix bear spot perspective
 - add stump
 - flatten/lower water
@@ -74,3 +74,16 @@ TODO E:
 - need bear frames
   - idle? maybe
   - cast throw
+
+# Reorganization plan
+
+I've been trying to figure out exactly where I want to draw the boundaries for each "module" once I split this main file apart. 
+I think what mostly needs to happen is that larger state changes need to be pulled out into events. This will be super relevant 
+once we get to audio as I don't want to have to pepper in audio on every update system, where I really just need it to emit a 
+sound when certain things happen.
+
+So I think the plan is - look at every update system that takes in `Commands`, and have it emit an event instead. Then have event 
+listeners/readers that actually submit the commands and/or otherwise react to the events each be their own systems. Once those 
+systems, we'll see what sort of shape emerges out of it. It would be nice if fish as a concept could be pulled out into their own
+plugin, hook into its own, the bear into its own, etc, and they just pass events around to change state. This could introduce its
+own challenges, as it does in any distributed system.
