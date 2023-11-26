@@ -727,40 +727,22 @@ fn calculate_return_path(
 ) -> ReturningToWater {
     debug_assert_ne!(0.0, gravity_y);
     debug_assert_ne!(0.0, water_drag_y);
-
-    println!("start_x {:?}", start_x);
-    println!("start_y {:?}", start_y);
-    println!("end_x {:?}", end_x);
-    println!("end_y {:?}", end_y);
-    println!("water_y {:?}", water_y);
-    println!("gravity_y {:?}", gravity_y);
-    println!("water_drag_y {:?}", water_drag_y);
-    println!("start_time_s {:?}", start_time_s);
-
     //we need to hit the lane_y, so we need to know what the vel_y is at the water's surface, 
     //so then we can know how high it arcs and what vel we need to start with to hit that apex.
     //working backwards from the final position...
     let time_from_water_to_lane = (2.0 / water_drag_y * (water_y - end_y)).sqrt();
-    println!("time_from_water_to_lane {:?}", time_from_water_to_lane);
     let water_entrance_vel_y = water_drag_y * time_from_water_to_lane;
-    println!("water_entrance_vel_y {:?}", water_entrance_vel_y);
     let time_from_apex_to_water = water_entrance_vel_y / gravity_y;
-    println!("time_from_apex_to_water {:?}", time_from_apex_to_water);
     let apex_pos_y = water_y + time_from_apex_to_water * time_from_apex_to_water * gravity_y / 2.0;
-    println!("apex_pos_y {:?}", apex_pos_y);
     let time_to_apex = (2.0 / gravity_y * (apex_pos_y - start_y)).sqrt();
-    println!("time_to_apex {:?}", time_to_apex);
+
     let total_time = 
         time_to_apex 
         + time_from_apex_to_water 
         + time_from_water_to_lane;
-    println!("total_time {:?}", total_time);
     let start_vel_x = (end_x - start_x) / total_time;
-    println!("start_vel_x {:?}", start_vel_x);
     let start_vel_y = gravity_y * time_to_apex;
-    println!("start_vel_y {:?}", start_vel_y);
     let water_pos_x = end_x - (time_from_water_to_lane * start_vel_x);
-    println!("water_pos_x {:?}", water_pos_x);
     ReturningToWater { 
         start_vel: Vec2::new(start_vel_x, start_vel_y), 
         water_entrance_vel: Vec2::new(start_vel_x, -water_entrance_vel_y),
