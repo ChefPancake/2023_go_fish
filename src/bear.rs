@@ -112,7 +112,7 @@ impl BearAnimations {
             timer: Timer::from_seconds(0.15, TimerMode::Repeating),
             rate_multiplier: 1.0,
             stretch_x: 0.0,
-            stretch_y: 0.2,
+            stretch_y: 0.05,
         }
     }
 }

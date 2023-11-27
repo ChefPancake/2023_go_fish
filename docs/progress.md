@@ -62,11 +62,12 @@
     - [x] alternate two critical frames N times
   - [x] when caught fish goes flying, switch to catch frame
   - [ ] squish and stretch
-    - [ ] on cast, stretch forward then relax
-    - [ ] when reeling, pulse/shake fast
-    - [ ] on catch, stretch up then relax
-    - [ ] when fishing, slow pulse
-    - [ ] on crit, ???
+    - [x] on cast, stretch forward then relax
+    - [x] when reeling, pulse/shake fast
+    - [x] on catch, stretch up then relax
+    - [x] when fishing, slow pulse
+    - [x] on crit, ???
+    - [ ] squish from feet
 - [x] reset level when last fish lands on stack and nothing is knocked out
 - [x] reorganize
 - [ ] refactor interpolation data/funcs
