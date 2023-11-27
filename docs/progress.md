@@ -62,7 +62,7 @@
     - [ ] alternate two critical frames N times
   - [ ] when caught fish goes flying, switch to catch frame
 - [x] reset level when last fish lands on stack and nothing is knocked out
-- [ ] reorganize
+- [x] reorganize
 - [ ] refactor interpolation data/funcs
 
 # TODO E:
@@ -75,15 +75,16 @@
   - idle? maybe
   - cast throw
 
-# Reorganization plan
+# Reorganization Notes
+Currently there is a heirarchy of plugins. From top to bottom, where the top knows about everything and the bottom doesn't know anything:
 
-I've been trying to figure out exactly where I want to draw the boundaries for each "module" once I split this main file apart. 
-I think what mostly needs to happen is that larger state changes need to be pulled out into events. This will be super relevant 
-once we get to audio as I don't want to have to pepper in audio on every update system, where I really just need it to emit a 
-sound when certain things happen.
+- catch_stack
+- hook
+- fish
+- physics
+- core
 
-So I think the plan is - look at every update system that takes in `Commands`, and have it emit an event instead. Then have event 
-listeners/readers that actually submit the commands and/or otherwise react to the events each be their own systems. Once those 
-systems, we'll see what sort of shape emerges out of it. It would be nice if fish as a concept could be pulled out into their own
-plugin, hook into its own, the bear into its own, etc, and they just pass events around to change state. This could introduce its
-own challenges, as it does in any distributed system.
+Some of these relationships might be unavoidable, like the hook knowing about fish. But a lot of these relationships are maintained for their events. This could be flattened out if events were owned by core, and then everything referenced that instead. Similar to a modular monolith, where the interfaces are at the center and all the modules reference those to either depend on them or implement them. I'll leave it alone for now as I
+don't want this to get in the way of creating features and I don't want to
+guess wrong on what the structure should be.
+
