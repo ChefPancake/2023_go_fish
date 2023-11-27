@@ -1,3 +1,4 @@
+mod bear;
 mod catch_stack;
 mod constants;
 mod core;
@@ -9,6 +10,7 @@ use bevy::prelude::*;
 use bevy::diagnostic::{LogDiagnosticsPlugin, FrameTimeDiagnosticsPlugin};
 use bevy::window::WindowResolution;
 
+use bear::*;
 use catch_stack::*;
 use constants::*;
 use core::*;
@@ -19,8 +21,6 @@ use physics::*;
 
 fn main() {
     App::new()
-    .add_event::<FishLandedInStack>()
-    .add_event::<FishKnockedOutOfStack>()
     .add_plugins((
         DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
@@ -37,25 +37,11 @@ fn main() {
         PhysicsPlugin,
         FishPlugin,
         HookPlugin,
-        CatchStackPlugin
+        CatchStackPlugin,
+        BearPlugin
     ))
-    .add_systems(Startup,
-        add_bear)
     .add_systems(Update, (
         bevy::window::close_on_esc,
     ))
     .run();
-}
-
-fn add_bear(
-    handles: Res<ImageHandles>,
-    mut commands: Commands
-) {
-    let atlas_handle = handles.bear_atlas_handle.as_ref().expect("Images should be loaded");
-    commands.spawn(SpriteSheetBundle {
-        texture_atlas: atlas_handle.clone(),
-        sprite: TextureAtlasSprite::new(0),
-        transform: Transform::from_translation(Vec3::new(BEAR_POS.x, BEAR_POS.y, 10.0)), 
-        ..default()
-    });
 }

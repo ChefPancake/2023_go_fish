@@ -11,6 +11,7 @@ impl Plugin for HookPlugin {
         .add_event::<FishCaught>()
         .add_event::<HookedFish>()
         .add_event::<HookLandedInWater>()
+        .add_event::<HookCast>()
         .add_systems(Startup, add_hook)
         .add_systems(Update, (
             reel_in,
@@ -47,6 +48,11 @@ pub struct HookLandedInWater {
 pub struct HookedFish {
     pub hook_entity: Entity,
     pub fish_entity: Entity,
+}
+
+#[derive(Event)]
+pub struct HookCast {
+    pub hook_entity: Entity
 }
 
 #[derive(Event)]
@@ -148,11 +154,13 @@ fn turn_hook_pink(
 fn cast_hook(
     hook_query: Query<Entity, (With<Hook>, With<WaitingToBeCast>)>,
     input: Res<Input<KeyCode>>,
+    mut on_cast: EventWriter<HookCast>,
     time: Res<Time>,
     mut commands: Commands
 ) {
     for entity in &hook_query {
-        if input.just_released(KeyCode::Space) {
+        if input.just_pressed(KeyCode::Space) {
+            on_cast.send(HookCast{ hook_entity: entity });
             commands.entity(entity).remove::<WaitingToBeCast>();
             let (initial_vel, arc_time) = calculate_time_and_initial_vel_for_arc(
                 LINE_START_POS.x,

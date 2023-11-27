@@ -118,12 +118,15 @@ fn add_fish(
     let box_height = WATER_SIZE.y - height_offset;
     let lane_height = box_height / FISH_PER_LEVEL as f32;
     let mut rng = rand::thread_rng();
-    let mut fish_and_sort: Vec<(usize, usize)> = (0..FISH_PER_LEVEL).map(|f| (f, (rng.gen::<f32>() * FISH_PER_LEVEL as f32 * 1000.0) as usize)).collect();
+    let mut fish_and_sort: Vec<(usize, usize)> = 
+        (0..FISH_PER_LEVEL)
+        .map(|f| (f, (rng.gen::<f32>() * FISH_PER_LEVEL as f32 * 10000.0) as usize))
+        .collect();
     fish_and_sort.sort_by_key(|(_, key)| *key);
     for (pos_index, fish_index) in fish_and_sort.iter().map(|(item, _)| item).enumerate() {
         let fish_size = FISH_ATLAS_SIZES[*fish_index];
         let fish_half_width = (fish_size - 1) as f32 * 20.0 + 30.0;
-        let pos_x = rng.gen::<f32>() * box_width - (box_width / 2.0) + WATER_POS.x;
+        let pos_x = rand::random::<f32>() * box_width - (box_width / 2.0) + WATER_POS.x;
         let pos_y = WATER_POS.y - (box_height - height_offset) / 2.0 - height_offset + lane_height * pos_index as f32 + rng.gen::<f32>() * lane_height * 0.8;
         commands.spawn((
             SpriteSheetBundle {

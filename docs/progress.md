@@ -43,9 +43,9 @@
 - [ ] add fish chasing
   - when near and facing the hook, fish will chase it. 
   - fish will stay within lane, leaving the lane will cause the fish to give up and return to original pos.y
-- [ ] add casting
-  - [ ] hook starts out of water
-  - [ ] press space to cast
+- [x] add casting
+  - [x] hook starts out of water
+  - [x] press space to cast
     - goes to center of water
     - maybe add holding space to cast nearer or farther? might be unnecessary
 - [ ] line updates
@@ -53,17 +53,27 @@
   - [ ] tighten line when reeling
   - [ ] when reeling, move fish.x slightly towards bear.x (towards centroid)
 - [ ] animate bear
-  - [ ] before casting, switch to cast frame
-  - [ ] when hook in air, switch to fishing frame
-  - [ ] when reeling, switch to reel frame
-  - [ ] critical catch
+  - [x] before casting, switch to cast frame
+  - [x] when hook in air, switch to fishing frame
+  - [x] when reeling, switch to reel frame
+  - [x] critical catch
     - [ ] hitstop
       - freeze all fish: swimming, reeling, and flying
-    - [ ] alternate two critical frames N times
-  - [ ] when caught fish goes flying, switch to catch frame
+    - [x] alternate two critical frames N times
+  - [x] when caught fish goes flying, switch to catch frame
+  - [ ] squish and stretch
+    - [ ] on cast, stretch forward then relax
+    - [ ] when reeling, pulse/shake fast
+    - [ ] on catch, stretch up then relax
+    - [ ] when fishing, slow pulse
+    - [ ] on crit, ???
 - [x] reset level when last fish lands on stack and nothing is knocked out
 - [x] reorganize
 - [ ] refactor interpolation data/funcs
+- [ ] audio
+  - [ ] music
+    - [jummbox](https://jummbus.bitbucket.io)
+  - [ ] sound effects
 
 # TODO E:
 - Fix bear spot perspective

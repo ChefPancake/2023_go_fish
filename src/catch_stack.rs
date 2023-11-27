@@ -9,7 +9,10 @@ pub struct CatchStackPlugin;
 impl Plugin for CatchStackPlugin {
     fn build(&self, app: &mut App) {
         app
-        .add_systems(Startup, add_catch_stack)
+        .add_event::<FishLandedInStack>()
+        .add_event::<FishKnockedOutOfStack>()
+        .add_systems(Startup, 
+            add_catch_stack)
         .add_systems(Update, 
             interpolate_flying_arc)
         .add_systems(PostUpdate,(
@@ -73,7 +76,6 @@ fn reset_stack(
         }
     }
 }
-
 
 fn handle_fish_reeled_to_surface(
     mut on_reeled: EventReader<ReeledToSurface>,
@@ -175,8 +177,8 @@ fn handle_fish_knocked_out_of_stack(
                     GRAVITY, 
                     WATER_DRAG_Y, 
                     time.elapsed_seconds());
-                    commands.entity(fish_entity).remove::<InCatchStack>();
-                    commands.entity(fish_entity).insert(return_val);
+                commands.entity(fish_entity).remove::<InCatchStack>();
+                commands.entity(fish_entity).insert(return_val);
             }
         }
     }
