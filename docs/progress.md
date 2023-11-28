@@ -48,10 +48,11 @@
   - [x] press space to cast
     - goes to center of water
     - maybe add holding space to cast nearer or farther? might be unnecessary
-- [ ] line updates
+- [x] line updates
   - [x] add offsets for each bear frame
-  - [ ] tighten line when reeling
-  - [ ] when reeling, move fish.x slightly towards bear.x (towards centroid)
+  - [x] tighten line when reeling
+  - [~] when reeling, move fish.x slightly towards bear.x (towards centroid)
+    - decided to not do this, don't want the fish to clip into the ground and don't want to reorient the fish just yet.
 - [ ] animate bear
   - [x] before casting, switch to cast frame
   - [x] when hook in air, switch to fishing frame

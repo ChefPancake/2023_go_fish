@@ -1,5 +1,4 @@
 use bevy::prelude::*;
-
 use crate::{
     core::*, 
     constants::*,
@@ -29,9 +28,6 @@ impl Plugin for BearPlugin {
         ));
     }
 }
-
-#[derive(Component)]
-pub struct LineStartPoint;
 
 #[derive(Component)]
 pub struct Bear;
@@ -370,38 +366,48 @@ fn update_fishing_line(
 
 
 fn draw_fishing_line(
-    hook_query: Query<&Transform, With<Hook>>,
+    hook_query: Query<(&Transform, Option<&WaitingToBeCast>, Option<&HookInWater>), With<Hook>>,
     line_start_query: Query<&GlobalTransform, With<LineStartPoint>>,
     mut gizmos: Gizmos
 ) {
+    const LINE_COLOR: Color = Color::GRAY;
     if let Ok(line_start_pos) = line_start_query.get_single() {
         let line_start_pos = line_start_pos.translation();
-        if let Ok(hook_pos) = hook_query.get_single() {
-            let hook_pos = hook_pos.translation;
-            let visual_surface_y = WATER_POS.y + WATER_SIZE.y / 2.0 - 40.0;
-            let distance_to_hook_x = line_start_pos.x - hook_pos.x;
-            let distance_to_surface_y = line_start_pos.y - visual_surface_y;
-            
-            let node_near_pole = Vec3::new(
-                hook_pos.x + 0.9 * distance_to_hook_x, 
-                visual_surface_y + 0.3 * distance_to_surface_y,
-                0.0
-            );
-            let node_near_surface = Vec3::new(
-                hook_pos.x + 0.4 * distance_to_hook_x, 
-                visual_surface_y + 0.1 * distance_to_surface_y,
-                0.0
-            );
-            let node_at_surface = Vec3::new(hook_pos.x, visual_surface_y, 0.0);
-            let points = [[
-                line_start_pos, 
-                node_near_pole,
-                node_near_surface,
-                node_at_surface,
-                ]];
-            let bezier = Bezier::new(points);
-            gizmos.linestrip(bezier.to_curve().iter_positions(50), Color::GRAY);
-            gizmos.line(node_at_surface, Vec3::new(hook_pos.x, hook_pos.y + 25.0, 0.0), Color::GRAY);
+        if let Ok((hook_pos, is_waiting, is_in_water)) = hook_query.get_single() {
+            const HOOK_OFFSET: Vec3 = Vec3::new(0.0, 25.0, 0.0);
+            let hook_pos = hook_pos.translation + HOOK_OFFSET;
+            match (is_waiting.is_some(), is_in_water.is_some()) {
+                (true, _) =>
+                    gizmos.line(line_start_pos, hook_pos, LINE_COLOR),
+                (_, true) => {        
+                    let visual_surface_y = WATER_POS.y + WATER_SIZE.y / 2.0 - 80.0;
+                    let distance_to_hook_x = line_start_pos.x - hook_pos.x;
+                    let distance_to_surface_y = line_start_pos.y - visual_surface_y;
+                    
+                    let node_near_pole = Vec3::new(
+                        hook_pos.x + 0.9 * distance_to_hook_x, 
+                        visual_surface_y + 0.3 * distance_to_surface_y,
+                        0.0
+                    );
+                    let node_near_surface = Vec3::new(
+                        hook_pos.x + 0.4 * distance_to_hook_x, 
+                        visual_surface_y + 0.1 * distance_to_surface_y,
+                        0.0
+                    );
+                    let node_at_surface = Vec3::new(hook_pos.x, visual_surface_y, 0.0);
+                    let points = [[
+                        line_start_pos, 
+                        node_near_pole,
+                        node_near_surface,
+                        node_at_surface,
+                        ]];
+                    let bezier = Bezier::new(points);
+                    gizmos.linestrip(bezier.to_curve().iter_positions(50), LINE_COLOR);
+                    gizmos.line(node_at_surface, Vec3::new(hook_pos.x, hook_pos.y, 0.0), LINE_COLOR);
+                },
+                (false, false) => 
+                    gizmos.line(line_start_pos, hook_pos, LINE_COLOR)
+            };
         }
     }
 }

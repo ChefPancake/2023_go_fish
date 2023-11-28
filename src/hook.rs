@@ -21,6 +21,7 @@ impl Plugin for HookPlugin {
             fish_bite_hook,
             turn_hook_pink,
             catch_fish,
+            update_hook_while_waiting,
         ))
         .add_systems(PostUpdate, (
             handle_hook_reeled_to_surface,
@@ -93,6 +94,9 @@ pub struct WaitingToBeCast;
 #[derive(Component, Debug)]
 pub struct Reeling;
 
+#[derive(Component)]
+pub struct LineStartPoint;
+
 fn catch_fish(
     input: Res<Input<KeyCode>>,
     time: Res<Time>,
@@ -116,6 +120,17 @@ fn catch_fish(
     }
 }
 
+fn update_hook_while_waiting(
+    mut hook_query: Query<&mut Transform, With<WaitingToBeCast>>,
+    line_start_query: Query<&GlobalTransform, With<LineStartPoint>>
+) {
+    if let Ok(mut hook_pos) = hook_query.get_single_mut() {
+        if let Ok(line_pos) = line_start_query.get_single().map(|x| x.translation()) {
+            hook_pos.translation = line_pos + Vec3::new(0.0, -50.0, 0.0);
+        }
+    }
+}
+
 fn add_hook(
     mut commands: Commands,
     asset_server: Res<AssetServer>
@@ -123,12 +138,7 @@ fn add_hook(
     commands.spawn((
         SpriteBundle {
             texture: asset_server.load("hook.png"),
-            transform: 
-                Transform { 
-                    translation: Vec3::new(LINE_START_POS.x, LINE_START_POS.y, 0.0),
-                    scale: Vec3::new(2.0, 2.0, 1.0),
-                    ..default()
-                },
+            transform: Transform::from_scale(Vec3::new(2.0, 2.0, 1.0)),
             ..default()
         },
         Hook {
@@ -152,6 +162,7 @@ fn turn_hook_pink(
 
 fn cast_hook(
     hook_query: Query<Entity, (With<Hook>, With<WaitingToBeCast>)>,
+    line_start_query: Query<&GlobalTransform, With<LineStartPoint>>,
     input: Res<Input<KeyCode>>,
     mut on_cast: EventWriter<HookCast>,
     time: Res<Time>,
@@ -161,22 +172,24 @@ fn cast_hook(
         if input.just_pressed(KeyCode::Space) {
             on_cast.send(HookCast{ hook_entity: entity });
             commands.entity(entity).remove::<WaitingToBeCast>();
-            let (initial_vel, arc_time) = calculate_time_and_initial_vel_for_arc(
-                LINE_START_POS.x,
-                LINE_START_POS.y,
-                CAST_TARGET_POS.x,
-                CAST_TARGET_POS.y,
-                GRAVITY,
-                900.0 //TODO: K: make constant
-            );
-            commands.entity(entity).insert(CastingHook {
-                start_vel: initial_vel,
-                gravity: GRAVITY,
-                start_pos: LINE_START_POS,
-                end_pos: CAST_TARGET_POS,
-                start_time_s: time.elapsed_seconds(),
-                end_time_s: time.elapsed_seconds() + arc_time,
-            });
+            if let Ok(line_start_pos) = line_start_query.get_single().map(|x| x.translation()) {
+                let (initial_vel, arc_time) = calculate_time_and_initial_vel_for_arc(
+                    line_start_pos.x,
+                    line_start_pos.y,
+                    CAST_TARGET_POS.x,
+                    CAST_TARGET_POS.y,
+                    GRAVITY,
+                    900.0 //TODO: K: make constant
+                );
+                commands.entity(entity).insert(CastingHook {
+                    start_vel: initial_vel,
+                    gravity: GRAVITY,
+                    start_pos: line_start_pos.truncate(),
+                    end_pos: CAST_TARGET_POS,
+                    start_time_s: time.elapsed_seconds(),
+                    end_time_s: time.elapsed_seconds() + arc_time,
+                });
+            }
         }
     }
 }
@@ -218,7 +231,6 @@ fn fish_bite_hook(
     }
 }
 
-
 fn get_distance_to_fish_mouth(
     from: &Vec3, 
     fish_pos: &Vec3, 
@@ -258,15 +270,14 @@ fn reel_in(
 
 fn handle_hook_reeled_to_surface(
     mut on_reeled: EventReader<ReeledToSurface>,
-    mut hook_query: Query<(Entity, &mut Transform), With<Hook>>,
+    hook_query: Query<Entity, With<Hook>>,
     mut commands: Commands
 ) {
     for event in on_reeled.iter() {
-        if let Ok((hook_entity, mut hook_pos)) = hook_query.get_single_mut() {
+        if let Ok(hook_entity) = hook_query.get_single() {
             if event.entity == hook_entity {
                 commands.entity(hook_entity).remove::<Reeling>();
                 commands.entity(hook_entity).insert(WaitingToBeCast);
-                hook_pos.translation = Vec3::new(LINE_START_POS.x, LINE_START_POS.y, 0.0);
             }
         }
     }

@@ -7,8 +7,10 @@ mod hook;
 mod physics;
 
 use bevy::prelude::*;
-use bevy::diagnostic::{LogDiagnosticsPlugin, FrameTimeDiagnosticsPlugin};
 use bevy::window::WindowResolution;
+#[cfg(debug_assertions)]
+use bevy::diagnostic::{LogDiagnosticsPlugin, FrameTimeDiagnosticsPlugin};
+#[cfg(debug_assertions)]
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 
 use bear::*;
@@ -32,8 +34,11 @@ fn main() {
             }),
             ..default()
         }),
+        #[cfg(debug_assertions)]
         WorldInspectorPlugin::default(),
+        #[cfg(debug_assertions)]
         LogDiagnosticsPlugin::default(),
+        #[cfg(debug_assertions)]
         FrameTimeDiagnosticsPlugin::default(),
         CorePlugin,
         PhysicsPlugin,
