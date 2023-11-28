@@ -9,6 +9,7 @@ mod physics;
 use bevy::prelude::*;
 use bevy::diagnostic::{LogDiagnosticsPlugin, FrameTimeDiagnosticsPlugin};
 use bevy::window::WindowResolution;
+use bevy_inspector_egui::quick::WorldInspectorPlugin;
 
 use bear::*;
 use catch_stack::*;
@@ -30,7 +31,8 @@ fn main() {
                 ..default()
             }),
             ..default()
-        }), 
+        }),
+        WorldInspectorPlugin::default(),
         LogDiagnosticsPlugin::default(),
         FrameTimeDiagnosticsPlugin::default(),
         CorePlugin,

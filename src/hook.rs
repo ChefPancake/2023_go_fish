@@ -21,7 +21,6 @@ impl Plugin for HookPlugin {
             fish_bite_hook,
             turn_hook_pink,
             catch_fish,
-            draw_fishing_line,
         ))
         .add_systems(PostUpdate, (
             handle_hook_reeled_to_surface,
@@ -254,37 +253,6 @@ fn reel_in(
         if hit_surface {
             on_reeled.send(ReeledToSurface { entity });
         }
-    }
-}
-
-fn draw_fishing_line(
-    hook_query: Query<&Transform, With<Hook>>,
-    mut gizmos: Gizmos
-) {
-    if let Ok(hook_pos) = hook_query.get_single() {
-        let hook_pos = hook_pos.translation;
-        let visual_surface_y = WATER_POS.y + WATER_SIZE.y / 2.0 - 40.0;
-        let distance_to_hook_x = LINE_START_POS.x - hook_pos.x;
-        let distance_to_surface_y = LINE_START_POS.y - visual_surface_y;
-
-        let node_near_pole = Vec2::new(
-            hook_pos.x + 0.9 * distance_to_hook_x, 
-            visual_surface_y + 0.3 * distance_to_surface_y,
-        );
-        let node_near_surface = Vec2::new(
-            hook_pos.x + 0.4 * distance_to_hook_x, 
-            visual_surface_y + 0.1 * distance_to_surface_y,
-        );
-        let node_at_surface = Vec2::new(hook_pos.x, visual_surface_y);
-        let points = [[
-            LINE_START_POS, 
-            node_near_pole,
-            node_near_surface,
-            node_at_surface,
-        ]];
-        let bezier = Bezier::new(points);
-        gizmos.linestrip_2d(bezier.to_curve().iter_positions(50), Color::GRAY);
-        gizmos.line_2d(node_at_surface, Vec2::new(hook_pos.x, hook_pos.y + 25.0), Color::GRAY);
     }
 }
 
