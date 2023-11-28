@@ -49,7 +49,7 @@
     - goes to center of water
     - maybe add holding space to cast nearer or farther? might be unnecessary
 - [ ] line updates
-  - [ ] add offsets for each bear frame
+  - [x] add offsets for each bear frame
   - [ ] tighten line when reeling
   - [ ] when reeling, move fish.x slightly towards bear.x (towards centroid)
 - [ ] animate bear
@@ -61,13 +61,13 @@
       - freeze all fish: swimming, reeling, and flying
     - [x] alternate two critical frames N times
   - [x] when caught fish goes flying, switch to catch frame
-  - [ ] squish and stretch
+  - [x] squish and stretch
     - [x] on cast, stretch forward then relax
     - [x] when reeling, pulse/shake fast
     - [x] on catch, stretch up then relax
     - [x] when fishing, slow pulse
     - [x] on crit, ???
-    - [ ] squish from feet
+    - [x] squish from feet
 - [x] reset level when last fish lands on stack and nothing is knocked out
 - [x] reorganize
 - [ ] refactor interpolation data/funcs
