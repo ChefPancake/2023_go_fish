@@ -12,6 +12,7 @@ impl Plugin for CorePlugin {
         .add_systems(Startup, (
             add_camera,
             add_bg,
+            add_water,
         ));
     }
 }
@@ -26,6 +27,7 @@ pub struct ImageHandles {
     pub bg_handle: Option<Handle<Image>>,
     pub bear_handle: Option<Handle<Image>>,
     pub stack_handle: Option<Handle<Image>>,
+    pub water_handle: Option<Handle<Image>>,
 
     pub bear_atlas_handle: Option<Handle<TextureAtlas>>,
     pub fish_atlas_handle: Option<Handle<TextureAtlas>>,
@@ -40,6 +42,7 @@ fn load_images(
 ) {
     images.bg_handle = Some(asset_server.load("background.png"));
     images.hook_handle = Some(asset_server.load("hook.png"));
+    images.water_handle = Some(asset_server.load("water.png"));
 
     let fish_handle = asset_server.load("fish_atlas.png");
     let fish_atlas = TextureAtlas::from_grid(
@@ -94,6 +97,21 @@ fn add_bg(
         SpriteBundle {
             texture: image_handle.clone(),
             transform: Transform::from_translation(Vec3::new(0.0, 0.0, -1000.0)),
+            ..default()
+        }
+    );
+}
+
+fn add_water(
+    images: Res<ImageHandles>,
+    mut commands: Commands
+) {
+    let image_handle = images.water_handle.as_ref().expect("images should be loaded");
+    commands.spawn(
+        SpriteBundle {
+            sprite: Sprite { color: Color::Rgba { red: 1.0, green: 1.0, blue: 1.0, alpha: 0.3 }, ..default() },
+            texture: image_handle.clone(),
+            transform: Transform::from_translation(Vec3::new(WATER_POS.x, WATER_POS.y - 65.0, 1.0)),
             ..default()
         }
     );

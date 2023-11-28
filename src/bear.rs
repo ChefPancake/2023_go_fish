@@ -382,24 +382,26 @@ fn draw_fishing_line(
             let distance_to_hook_x = line_start_pos.x - hook_pos.x;
             let distance_to_surface_y = line_start_pos.y - visual_surface_y;
             
-            let node_near_pole = Vec2::new(
+            let node_near_pole = Vec3::new(
                 hook_pos.x + 0.9 * distance_to_hook_x, 
                 visual_surface_y + 0.3 * distance_to_surface_y,
+                0.0
             );
-            let node_near_surface = Vec2::new(
+            let node_near_surface = Vec3::new(
                 hook_pos.x + 0.4 * distance_to_hook_x, 
                 visual_surface_y + 0.1 * distance_to_surface_y,
+                0.0
             );
-            let node_at_surface = Vec2::new(hook_pos.x, visual_surface_y);
+            let node_at_surface = Vec3::new(hook_pos.x, visual_surface_y, 0.0);
             let points = [[
-                line_start_pos.truncate(), 
+                line_start_pos, 
                 node_near_pole,
                 node_near_surface,
                 node_at_surface,
                 ]];
             let bezier = Bezier::new(points);
-            gizmos.linestrip_2d(bezier.to_curve().iter_positions(50), Color::GRAY);
-            gizmos.line_2d(node_at_surface, Vec2::new(hook_pos.x, hook_pos.y + 25.0), Color::GRAY);
+            gizmos.linestrip(bezier.to_curve().iter_positions(50), Color::GRAY);
+            gizmos.line(node_at_surface, Vec3::new(hook_pos.x, hook_pos.y + 25.0, 0.0), Color::GRAY);
         }
     }
 }
