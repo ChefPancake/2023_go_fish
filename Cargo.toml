@@ -14,13 +14,13 @@ opt-level = 1
 opt-level = 3
 
 [target.x86_64-pc-windows-msvc.dependencies]
-bevy = { version = "0.11.3", features = ["dynamic_linking"] }
+bevy = { version = "0.11.3", features = ["dynamic_linking", "wav"] }
 bevy_ecs = "0.11.0"
 rand = "0.8.5"
 bevy-inspector-egui = "0.20.0"
 
 [target.wasm32-unknown-unknown.dependencies]
-bevy = { version = "0.11.3" }
+bevy = { version = "0.11.3", features = ["wav"] }
 bevy_ecs = "0.11.0"
 rand = "0.8.5"
 bevy-inspector-egui = "0.20.0"

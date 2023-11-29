@@ -8,7 +8,10 @@ impl Plugin for CorePlugin {
         .add_event::<ResetLevel>()
         .insert_resource(ImageHandles::default())
         .insert_resource(ClearColor(BACKGROUND_COLOR))
-        .add_systems(PreStartup, load_images)
+        .add_systems(PreStartup, (
+            load_images,
+            add_music,
+        ))
         .add_systems(Startup, (
             add_camera,
             add_bg,
@@ -130,4 +133,14 @@ fn add_water(
             ..default()
         }
     );
+}
+
+fn add_music(
+    asset_server: Res<AssetServer>,
+    mut commands: Commands
+) {
+    commands.spawn(AudioBundle {
+        source: asset_server.load("bg_music.wav"),
+        ..default()
+    });
 }
