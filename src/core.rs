@@ -28,10 +28,12 @@ pub struct ImageHandles {
     pub bear_handle: Option<Handle<Image>>,
     pub stack_handle: Option<Handle<Image>>,
     pub water_handle: Option<Handle<Image>>,
+    pub misc_handle: Option<Handle<Image>>,
 
     pub bear_atlas_handle: Option<Handle<TextureAtlas>>,
     pub fish_atlas_handle: Option<Handle<TextureAtlas>>,
     pub stack_atlas_handle: Option<Handle<TextureAtlas>>,
+    pub misc_atlas_handle: Option<Handle<TextureAtlas>>
 }
 
 
@@ -82,6 +84,19 @@ fn load_images(
     let bear_atlas_handle = atlases.add(bear_atlas);
     images.bear_handle = Some(bear_handle);
     images.bear_atlas_handle = Some(bear_atlas_handle);
+
+    let misc_handle = asset_server.load("misc.png");
+    let misc_atlas = TextureAtlas::from_grid(
+        misc_handle.clone(),
+        Vec2::new(600.0, 200.0),
+        2, 
+        5,
+        None,
+        None,
+    );
+    let misc_atlas_handle = atlases.add(misc_atlas);
+    images.misc_handle = Some(misc_handle);
+    images.misc_atlas_handle = Some(misc_atlas_handle);
 }
 
 fn add_camera(mut commands: Commands) {
@@ -109,7 +124,7 @@ fn add_water(
     let image_handle = images.water_handle.as_ref().expect("images should be loaded");
     commands.spawn(
         SpriteBundle {
-            sprite: Sprite { color: Color::Rgba { red: 1.0, green: 1.0, blue: 1.0, alpha: 0.3 }, ..default() },
+            sprite: Sprite { color: Color::Rgba { red: 1.0, green: 1.0, blue: 1.0, alpha: 0.2 }, ..default() },
             texture: image_handle.clone(),
             transform: Transform::from_translation(Vec3::new(WATER_POS.x, WATER_POS.y - 65.0, 1.0)),
             ..default()

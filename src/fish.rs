@@ -112,7 +112,7 @@ fn add_fish(
     mut commands: Commands,
 ) {
     let fish_atlas_handle = images.fish_atlas_handle.as_ref().expect("Images should be loaded");
-    let height_offset = 100.0;
+    let height_offset = 250.0;
 
     let box_width = WATER_SIZE.x;
     let box_height = WATER_SIZE.y - height_offset;
@@ -127,7 +127,7 @@ fn add_fish(
         let fish_size = FISH_ATLAS_SIZES[*fish_index];
         let fish_half_width = (fish_size - 1) as f32 * 20.0 + 30.0;
         let pos_x = rand::random::<f32>() * box_width - (box_width / 2.0) + WATER_POS.x;
-        let pos_y = WATER_POS.y - (box_height - height_offset) / 2.0 - height_offset + lane_height * pos_index as f32 + rng.gen::<f32>() * lane_height * 0.8;
+        let pos_y = WATER_POS.y - (box_height - height_offset) / 2.0 - height_offset / 2.0 + lane_height * pos_index as f32 + rng.gen::<f32>() * lane_height * 0.8;
         commands.spawn((
             SpriteSheetBundle {
                 texture_atlas: fish_atlas_handle.clone(),

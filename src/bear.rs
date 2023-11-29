@@ -54,8 +54,8 @@ impl BearAnimations {
             state: BearAnimationStates::Fishing,
             timer: Timer::from_seconds(3.0, TimerMode::Repeating),
             rate_multiplier: 1.0,
-            stretch_x: 0.05,
-            stretch_y: -0.05,
+            stretch_x: 0.03,
+            stretch_y: -0.03,
         }
     }
 
@@ -64,8 +64,8 @@ impl BearAnimations {
             state: BearAnimationStates::Waiting,
             timer: Timer::from_seconds(3.0, TimerMode::Repeating),
             rate_multiplier: 1.0,
-            stretch_x: 0.1,
-            stretch_y: -0.1,
+            stretch_x: 0.05,
+            stretch_y: -0.05,
         }
     }
 

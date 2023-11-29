@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use crate::constants::*;
+use crate::core::ImageHandles;
 use crate::fish::*;
 use crate::physics::*;
 
@@ -133,19 +134,27 @@ fn update_hook_while_waiting(
 
 fn add_hook(
     mut commands: Commands,
-    asset_server: Res<AssetServer>
+    images: Res<ImageHandles>
 ) {
     commands.spawn((
-        SpriteBundle {
-            texture: asset_server.load("hook.png"),
-            transform: Transform::from_scale(Vec3::new(2.0, 2.0, 1.0)),
-            ..default()
-        },
+        SpatialBundle::from_transform(Transform::from_translation(Vec3::ZERO)),
         Hook {
             move_speed: 300.0
         },
-        WaitingToBeCast
-    ));
+        WaitingToBeCast,
+    )).with_children(|parent| {
+        parent.spawn(
+            SpriteSheetBundle {
+                texture_atlas: images.misc_atlas_handle.as_ref().expect("Images should be loaded").clone(),
+                sprite: TextureAtlasSprite::new(6),
+                transform: Transform {
+                    translation: Vec3::new(-6.0, 0.0, 0.0),
+                    scale: Vec3::new(2.0, 2.0, 1.0),
+                    ..default()
+                },
+                ..default()
+            });
+    });
 }
 
 fn turn_hook_pink(
