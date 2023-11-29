@@ -1,3 +1,4 @@
+mod audio;
 mod bear;
 mod catch_stack;
 mod constants;
@@ -13,6 +14,7 @@ use bevy::diagnostic::{LogDiagnosticsPlugin, FrameTimeDiagnosticsPlugin};
 #[cfg(debug_assertions)]
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 
+use audio::*;
 use bear::*;
 use catch_stack::*;
 use constants::*;
@@ -41,6 +43,7 @@ fn main() {
         #[cfg(debug_assertions)]
         FrameTimeDiagnosticsPlugin::default(),
         CorePlugin,
+        HSLAudioPlugin,
         PhysicsPlugin,
         FishPlugin,
         HookPlugin,

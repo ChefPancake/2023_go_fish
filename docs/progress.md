@@ -72,10 +72,10 @@
 - [x] reset level when last fish lands on stack and nothing is knocked out
 - [x] reorganize
 - [ ] refactor interpolation data/funcs
-- [ ] audio
-  - [ ] music
+- [x] audio
+  - [x] music
     - [jummbox](https://jummbus.bitbucket.io)
-  - [ ] sound effects
+  - [x] sound effects
 
 # TODO E:
 - Fix bear spot perspective

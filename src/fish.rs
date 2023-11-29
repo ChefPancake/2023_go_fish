@@ -16,6 +16,7 @@ impl Plugin for FishPlugin {
     fn build(&self, app: &mut App) {
         app
         .add_event::<FishReturnedToWater>()
+        .add_event::<FishLandedInWater>()
         .add_systems(Startup, 
             add_fish
         )
@@ -38,6 +39,8 @@ pub struct FishReturnedToWater {
     pub end_vel: Vec2
 }
 
+#[derive(Event, Default)]
+pub struct FishLandedInWater;
 
 #[derive(Component)]
 pub struct FishMovement {
@@ -306,7 +309,8 @@ fn apply_fish_boundaries(
 fn interpolate_returning_to_water_arcs(
     time: Res<Time>,
     mut returning_query: Query<(Entity, &mut Transform, &ReturningToWater)>,
-    mut on_returned: EventWriter<FishReturnedToWater>
+    mut on_returned: EventWriter<FishReturnedToWater>,
+    mut on_landed_in_water: EventWriter<FishLandedInWater>
 ) {
     for (entity, mut transform, returning) in &mut returning_query {
         if time.elapsed_seconds() > returning.end_time_s {
@@ -317,6 +321,10 @@ fn interpolate_returning_to_water_arcs(
             transform.translation = Vec3::new(returning.end_pos.x, returning.end_pos.y, transform.translation.z);
             transform.scale = Vec3::new(1.0, 1.0, 1.0);
         } else if time.elapsed_seconds() > returning.water_entrance_time_s {
+            //if we just crossed the water this frame
+            if (time.elapsed_seconds() - time.delta_seconds()) < returning.water_entrance_time_s {
+                on_landed_in_water.send_default();
+            }
             let elapsed = time.elapsed_seconds() - returning.water_entrance_time_s;
             let new_pos_x = returning.water_entrance_pos.x + (elapsed * returning.water_entrance_vel.x);
             let new_pos_y = returning.water_entrance_pos.y + (elapsed * returning.water_entrance_vel.y) + (returning.water_drag * elapsed * elapsed / 2.0);

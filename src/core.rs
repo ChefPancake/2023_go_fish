@@ -10,7 +10,6 @@ impl Plugin for CorePlugin {
         .insert_resource(ClearColor(BACKGROUND_COLOR))
         .add_systems(PreStartup, (
             load_images,
-            add_music,
         ))
         .add_systems(Startup, (
             add_camera,
@@ -133,14 +132,4 @@ fn add_water(
             ..default()
         }
     );
-}
-
-fn add_music(
-    asset_server: Res<AssetServer>,
-    mut commands: Commands
-) {
-    commands.spawn(AudioBundle {
-        source: asset_server.load("bg_music.wav"),
-        ..default()
-    });
 }
