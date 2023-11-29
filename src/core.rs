@@ -127,7 +127,7 @@ fn add_water(
         SpriteBundle {
             sprite: Sprite { color: Color::Rgba { red: 1.0, green: 1.0, blue: 1.0, alpha: 0.2 }, ..default() },
             texture: image_handle.clone(),
-            transform: Transform::from_translation(Vec3::new(WATER_POS.x, WATER_POS.y - 65.0, 1.0)),
+            transform: Transform::from_translation(Vec3::new(WATER_POS.x, WATER_POS.y - 65.0, 5.0)),
             ..default()
         }
     );

@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use crate::{core::*, constants::*};
+use crate::{core::*, constants::*, physics::Velocity};
 
 pub struct SnailPlugin;
 impl Plugin for SnailPlugin {
@@ -11,10 +11,13 @@ impl Plugin for SnailPlugin {
         ))
         .add_systems(Update, (
             update_snail,
-            animate_snail
+            animate_snail,
+            update_lifespan,
         ))
-        .add_systems(PostUpdate,
-            handle_level_end);
+        .add_systems(PostUpdate, (
+            handle_level_end,
+            create_snail_particles,
+        ));
     }
 }
 
@@ -24,6 +27,17 @@ pub struct SnailReachedEnd;
 #[derive(Component)]
 pub struct Snail {
     pub speed: f32
+}
+
+#[derive(Component)]
+pub struct ParticleTimer {
+    pub timer: Timer
+}
+
+//maybe move this to core
+#[derive(Component)]
+pub struct Lifespan {
+    pub timer: Timer
 }
 
 fn add_snail(
@@ -39,7 +53,10 @@ fn add_snail(
                     SNAIL_START_POS.extend(0.0)),
             ..default()
         },
-        Snail { speed: SNAIL_SPEED }
+        Snail { speed: SNAIL_SPEED },
+        ParticleTimer {
+            timer: Timer::from_seconds(1.0, TimerMode::Repeating)
+        }
     ));
 }
 
@@ -75,6 +92,58 @@ fn update_snail(
             } else {
                 snail_pos.translation.x = new_x;
             }
+        }
+    }
+}
+
+fn create_snail_particles(
+    mut snail_query: Query<(&mut ParticleTimer, &Transform), With<Snail>>,
+    time: Res<Time>,
+    images: Res<ImageHandles>,
+    mut commands: Commands
+) {
+    const PANIC_THRESHOLD: f32 = 400.0;
+    if let Ok((mut timer, snail_pos)) = snail_query.get_single_mut() {
+        if SNAIL_END_POS.x - snail_pos.translation.x < PANIC_THRESHOLD {
+            timer.timer.tick(time.delta());
+            if timer.timer.just_finished() {
+                let particle_pos = Vec3::new(
+                    snail_pos.translation.x + 50.0,
+                    snail_pos.translation.y,
+                    snail_pos.translation.z + 1.0,
+                );
+                commands.spawn((
+                    SpriteSheetBundle {
+                        texture_atlas: images.misc_atlas_handle.as_ref().expect("Images should be loaded").clone(),
+                        sprite: TextureAtlasSprite::new(8),
+                        transform: Transform::from_translation(
+                            particle_pos),
+                        ..default()
+                    },
+                    Lifespan {
+                        timer: Timer::from_seconds(1.0, TimerMode::Once) 
+                    },
+                    Velocity {
+                        x: -100.0,
+                        y: 200.0,
+                        drag_x: 100.0,
+                        drag_y: 200.0
+                    }
+                ));
+            }
+        }
+    }
+}
+
+fn update_lifespan(
+    mut lifespan_query: Query<(Entity, &mut Lifespan)>,
+    time: Res<Time>,
+    mut commands: Commands
+) {
+    for (entity, mut lifespan) in &mut lifespan_query {
+        lifespan.timer.tick(time.delta());
+        if lifespan.timer.finished() {
+            commands.entity(entity).despawn();
         }
     }
 }

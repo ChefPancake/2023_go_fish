@@ -22,7 +22,7 @@ pub const FISH_ATLAS_SIZES: [usize; 10] = [
     7,  2,
     6,  1,
     ];
-pub const LEVEL_LENGTH_S: f32 = 75.0;
+pub const LEVEL_LENGTH_S: f32 = 20.0; //75.0;
 pub const SNAIL_START_POS: Vec2 = Vec2::new(-80.0, -850.0);
 pub const SNAIL_END_POS: Vec2 = Vec2::new(875.0, SNAIL_START_POS.y);
 pub const SNAIL_SPEED: f32 = (SNAIL_END_POS.x - SNAIL_START_POS.x) / LEVEL_LENGTH_S;
