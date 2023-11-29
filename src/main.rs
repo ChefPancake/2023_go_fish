@@ -6,6 +6,7 @@ mod core;
 mod fish;
 mod hook;
 mod physics;
+mod snail;
 
 use bevy::prelude::*;
 use bevy::window::WindowResolution;
@@ -22,7 +23,7 @@ use core::*;
 use fish::*;
 use hook::*;
 use physics::*;
-
+use snail::*;
 
 fn main() {
     App::new()
@@ -44,6 +45,7 @@ fn main() {
         FrameTimeDiagnosticsPlugin::default(),
         CorePlugin,
         HSLAudioPlugin,
+        SnailPlugin,
         PhysicsPlugin,
         FishPlugin,
         HookPlugin,

@@ -74,7 +74,7 @@ impl BearAnimations {
             state: BearAnimationStates::Hooking,
             timer: Timer::from_seconds(0.15, TimerMode::Once),
             rate_multiplier: 0.5,
-            stretch_x: 0.0,
+            stretch_x: -0.3,
             stretch_y: 0.3,
         }
     }
@@ -105,7 +105,7 @@ impl BearAnimations {
             timer: Timer::from_seconds(0.3, TimerMode::Once),
             rate_multiplier: 0.5,
             stretch_x: 0.3,
-            stretch_y: 0.0,
+            stretch_y: -0.3,
         }
     }
 

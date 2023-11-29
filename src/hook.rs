@@ -357,7 +357,6 @@ fn handle_hook_caught_fish(
     }
 }
 
-
 fn handle_fish_caught(
     mut on_caught: EventReader<FishCaught>,
     mut commands: Commands
