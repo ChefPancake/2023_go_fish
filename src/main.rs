@@ -1,6 +1,7 @@
 mod audio;
 mod bear;
 mod catch_stack;
+mod clouds;
 mod constants;
 mod core;
 mod fish;
@@ -18,6 +19,7 @@ use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use audio::*;
 use bear::*;
 use catch_stack::*;
+use clouds::*;
 use constants::*;
 use core::*;
 use fish::*;
@@ -46,6 +48,7 @@ fn main() {
         CorePlugin,
         HSLAudioPlugin,
         SnailPlugin,
+        CloudsPlugin,
         PhysicsPlugin,
         FishPlugin,
         HookPlugin,

@@ -38,7 +38,6 @@ pub struct ImageHandles {
     pub misc_atlas_handle: Option<Handle<TextureAtlas>>
 }
 
-
 fn load_images(
     mut images: ResMut<ImageHandles>,
     mut atlases: ResMut<Assets<TextureAtlas>>,
