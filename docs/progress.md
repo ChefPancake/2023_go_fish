@@ -67,16 +67,38 @@
   - [x] music
     - [jummbox](https://jummbus.bitbucket.io)
   - [x] sound effects
+- [ ] Add end of game
+  - [ ] Losing when snail hits the end
+    - freeze game and display the lose bubble
+    - after short delay, press space to reset
+  - [ ] Catching all the fish wins the game
+    - Display the win bubble
+    - Record the time, display to screen
+  - [ ] Start the game time (and snail) on the first cast
+- [ ] fix catching
+  - [ ] adjust catch points on fish to flex with sprite
+  - [ ] set fish scale to 1
+  - [ ] make it easier to catch (and harder to play)
+  - [ ] possibly on catch - hide hook and draw line from surface to fish mouth (catch point centroid)
+- [ ] after squidging, drop top fish to new position
+- [ ] Load before running
+  - find a way to wait until all assets have loaded before playing
 - [ ] animate fish flopping when caught
-- [ ] refactor interpolation data/funcs
 - [ ] hitstop
   - freeze all fish: swimming, reeling, and flying
-- [ ] after squidging, drop top fish to new position
 - [ ] add x drag to water during return
 - [ ] add fish chasing
   - when near and facing the hook, fish will chase it. 
   - fish will stay within lane, leaving the lane will cause the fish to give up and return to original pos.y
+- [ ] refactor interpolation data/funcs
 
+# Building and deploying
+## building
+`cargo build --target wasm32-unknown-unknown --release`
+`wasm-bindgen --out-dir .\out\ --target web .\target\wasm32-unknown-unknown\release\gameoff_2023.wasm`
+
+## deploying
+Copy out the assets folder to `\out`, then zip all contents of `\out` and upload to itch.
 
 # Reorganization Notes
 Currently there is a heirarchy of plugins. From top to bottom, where the top knows about everything and the bottom doesn't know anything:

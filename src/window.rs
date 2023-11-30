@@ -7,15 +7,15 @@ impl Plugin for HSLWindowPlugin {
         app
         .insert_resource(ClearColor(background_color()))
         .add_plugins(
-        DefaultPlugins.set(WindowPlugin {
-            primary_window: Some(Window {
-                title: "GO FISH".to_string(),
-                fit_canvas_to_parent: true,
-                resolution: WindowResolution::new(704.0, 527.0),
+            DefaultPlugins.set(WindowPlugin {
+                primary_window: Some(Window {
+                    title: "GO FISH".to_string(),
+                    fit_canvas_to_parent: true,
+                    resolution: WindowResolution::new(704.0, 527.0),
+                    ..default()
+                }),
                 ..default()
-            }),
-            ..default()
-        }))
+            }))
         .add_systems(PostUpdate, window_resize);
     }
 }
