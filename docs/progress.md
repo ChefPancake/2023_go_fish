@@ -67,22 +67,22 @@
   - [x] music
     - [jummbox](https://jummbus.bitbucket.io)
   - [x] sound effects
-- [ ] Add end of game
+- [x] Add end of game
   - [x] Losing when snail hits the end
     - [x] ignore controls
-  - [ ] Catching all the fish wins the game
-    - [ ] Display the win bubble
-    - [ ] Record the time, display to screen
+  - [x] Catching all the fish wins the game
+    - [x] Display the win bubble
+    - [x] Record the time, display to screen
   - [x] after short delay, press space to reset
-  - [ ] Start the game time (and snail) on the first cast
-- [ ] fix catching
-  - [ ] adjust catch points on fish to flex with sprite
-  - [ ] set fish scale to 1
-  - [ ] make it easier to catch (and harder to play)
-  - [ ] possibly on catch - hide hook and draw line from surface to fish mouth (catch point centroid)
+  - [x] Start the game time (and snail) on the first cast
+- [x] thin out the fishing line, update color
+- [x] fix catching
+  - [x] adjust catch points on fish to flex with sprite
+  - [x] set fish scale to 1 on catch
+  - [x] make it easier to catch (and harder to play)
+  - [x] possibly on catch - hide hook and draw line from surface to fish mouth (catch point centroid)
 - [ ] after squidging, drop top fish to new position
 - [ ] add sounds for losing and winning
-- [ ] thin out the fishing line, update color
 - [ ] load before running
   - find a way to wait until all assets have loaded before playing
 - [ ] animate fish flopping when caught

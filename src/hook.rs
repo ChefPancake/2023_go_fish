@@ -27,7 +27,7 @@ impl Plugin for HookPlugin {
             update_hook_while_waiting,
         ))
         .add_systems(PostUpdate, (
-            handle_hook_reeled_to_surface,
+            handle_fish_reeled_to_surface,
             handle_fish_on_bite,
             handle_hook_on_bite,
             handle_hook_landed_in_water,
@@ -119,7 +119,6 @@ fn catch_fish(
                     on_catch.send(FishCaught { fish_entity, hook_entity, is_critical });
                     if react_time < CRITICAL_TIME {
                         on_critical.send(ReeledToSurface { entity: fish_entity });
-                        on_critical.send(ReeledToSurface { entity: hook_entity });
                     }
                 }
             }
@@ -232,39 +231,25 @@ fn move_hook(
 }
 
 fn fish_bite_hook(
-    fish_query: Query<(Entity, &Transform, &FishMouthPosition), Without<Hooked>>,
+    fish_query: Query<(Entity, &Children), Without<Hooked>>,
+    fish_mouth_query: Query<(Entity, &GlobalTransform, &FishMouth)>,
     hook_query: Query<(Entity, &Transform), (With<HookInWater>, Without<NearFish>)>,
     mut on_hook: EventWriter<HookedFish>,
 ) {
     for (hook_entity, hook) in &hook_query {
-        for (fish_entity, fish, mouth_pos) in &fish_query {
-            let distance = get_distance_to_fish_mouth(
-                &hook.translation,
-                &fish.translation,
-                fish.scale.x,
-                mouth_pos);
-            if distance < BITE_DISTANCE {
-                on_hook.send(HookedFish { hook_entity, fish_entity });
-                break;
+        for (fish_entity, children) in &fish_query {
+            for (mouth_entity, mouth_pos, mouth) in &fish_mouth_query {
+                //children should contain exactly one item, the mouth
+                if mouth_entity == children[0] {
+                    let distance = (hook.translation - mouth_pos.translation()).length();
+                    if distance < mouth.mouth_size {
+                        on_hook.send(HookedFish { hook_entity, fish_entity });
+                        break;
+                    }
+                }
             }
         }
     }
-}
-
-fn get_distance_to_fish_mouth(
-    from: &Vec3, 
-    fish_pos: &Vec3, 
-    fish_scale_x: f32, 
-    fish_mouth: &FishMouthPosition
-) -> f32 {
-    let mouth_offset_x = 
-        if fish_scale_x < 0.0 {
-            fish_mouth.offset_x
-        } else {
-            -fish_mouth.offset_x
-        };
-    let rel_mouth_pos = Vec3::new(mouth_offset_x, fish_mouth.offset_y, 0.0);
-    (*from + rel_mouth_pos - *fish_pos).length()
 }
 
 fn reel_in(
@@ -288,26 +273,29 @@ fn reel_in(
     }
 }
 
-fn handle_hook_reeled_to_surface(
+fn handle_fish_reeled_to_surface(
     mut on_reeled: EventReader<ReeledToSurface>,
-    hook_query: Query<Entity, With<Hook>>,
+    mut hook_query: Query<(Entity, &mut Visibility), With<Hook>>,
     mut commands: Commands
 ) {
-    for event in on_reeled.iter() {
-        if let Ok(hook_entity) = hook_query.get_single() {
-            if event.entity == hook_entity {
-                commands.entity(hook_entity).remove::<Reeling>();
-                commands.entity(hook_entity).insert(WaitingToBeCast);
-            }
+    if !on_reeled.is_empty() {
+        on_reeled.clear();
+        if let Ok((hook_entity, mut visibility)) = hook_query.get_single_mut() {
+            *visibility = Visibility::Inherited;
+            commands.entity(hook_entity).insert(WaitingToBeCast);
         }
     }
 }
 
 fn handle_hook_on_bite(
     mut on_hook: EventReader<HookedFish>,
+    mut hook_query: Query<&mut Visibility, With<Hook>>,
     mut commands: Commands
 ) {
     for event in on_hook.iter() {
+        if let Ok(mut visibility) = hook_query.get_single_mut() {
+            *visibility = Visibility::Hidden;
+        }
         commands.entity(event.hook_entity).insert(NearFish);
     }
 }
@@ -362,9 +350,6 @@ fn handle_hook_caught_fish(
 ) {
     for event in on_caught.iter() {
         commands.entity(event.hook_entity).remove::<(NearFish, HookInWater)>();
-        if !event.is_critical {
-            commands.entity(event.hook_entity).insert(Reeling);
-        }
     }
 }
 
@@ -373,7 +358,7 @@ fn handle_fish_caught(
     mut commands: Commands
 ) {
     for event in on_caught.iter() {
-        commands.entity(event.fish_entity).remove::<(Hooked, FishMovement, FishMouthPosition, Velocity)>();
+        commands.entity(event.fish_entity).remove::<(Hooked, FishMovement, Velocity)>();
         if !event.is_critical {
             commands.entity(event.fish_entity).insert(Reeling);
         }

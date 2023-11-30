@@ -84,7 +84,7 @@ fn reset_stack(
 fn handle_fish_reeled_to_surface(
     mut on_reeled: EventReader<ReeledToSurface>,
     catch_stack: Query<(&Transform, &CatchStack)>,
-    fish_query: Query<(Entity, &Transform), With<FishSize>>,
+    fish_query: Query<(Entity, &Transform), With<Fish>>,
     time: Res<Time>,
     mut commands: Commands,
 ) {
@@ -118,7 +118,7 @@ fn send_fish_to_stack(fish_pos: Vec3, catch_stack_pos: Vec3, gravity: f32, elaps
 }
 
 fn interpolate_flying_arc(
-    mut flying_query: Query<(Entity, &mut Transform, &FlyingToStack, &FishSize, &FishLanePos)>,
+    mut flying_query: Query<(Entity, &mut Transform, &FlyingToStack, &Fish, &FishLanePos)>,
     time: Res<Time>,
     mut on_land: EventWriter<FishLandedInStack>,
 ) {

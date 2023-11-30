@@ -3,7 +3,8 @@ use crate::{
     core::*, 
     constants::*,
     hook::*,
-    catch_stack::*
+    catch_stack::*, 
+    fish:: *
 };
 
 pub struct BearPlugin;
@@ -12,6 +13,7 @@ impl Plugin for BearPlugin {
         app
         .add_systems(Startup, (
             add_bear,
+            configure_line_thickness,
         ))
         .add_systems(Update, (
             update_critical_anim,
@@ -164,6 +166,12 @@ fn add_bear(
             LineStartPoint
         ));
     });
+}
+
+fn configure_line_thickness(
+    mut config: ResMut<GizmoConfig>
+) {
+    config.line_width = 1.0;
 }
 
 #[derive(PartialEq, Eq)]
@@ -368,49 +376,61 @@ fn update_fishing_line(
 
 fn draw_fishing_line(
     hook_query: Query<(&Transform, Option<&WaitingToBeCast>, Option<&HookInWater>), With<Hook>>,
+    fish_query: Query<(&Children, Option<&Reeling>, Option<&Hooked>), With<Fish>>,
+    mouth_query: Query<(Entity, &GlobalTransform), With<FishMouth>>,
     popup_query: Query<(), With<PopupTimer>>,
     line_start_query: Query<&GlobalTransform, With<LineStartPoint>>,
     mut gizmos: Gizmos
 ) {
     const LINE_COLOR: Color = Color::GRAY;
     if popup_query.is_empty() {
-
         if let Ok(line_start_pos) = line_start_query.get_single() {
             let line_start_pos = line_start_pos.translation();
             if let Ok((hook_pos, is_waiting, is_in_water)) = hook_query.get_single() {
                 const HOOK_OFFSET: Vec3 = Vec3::new(0.0, 25.0, 0.0);
-                let hook_pos = hook_pos.translation + HOOK_OFFSET;
+                let mut line_target: Option<Vec3> = None;
+                for (fish_children, is_reeling, is_hooked) in &fish_query {
+                    if is_reeling.is_some() || is_hooked.is_some() {
+                        for (mouth_entity, mouth_pos) in &mouth_query {
+                            if mouth_entity == fish_children[0] {
+                                line_target = Some(mouth_pos.translation());
+                                break;
+                            }
+                        }
+                    }
+                }
+                let line_target = line_target.unwrap_or(hook_pos.translation + HOOK_OFFSET);
                 match (is_waiting.is_some(), is_in_water.is_some()) {
                     (true, _) =>
-                    gizmos.line(line_start_pos, hook_pos, LINE_COLOR),
+                        gizmos.line(line_start_pos, line_target, LINE_COLOR),
                     (_, true) => {        
                         let visual_surface_y = WATER_POS.y + WATER_SIZE.y / 2.0 - 80.0;
-                        let distance_to_hook_x = line_start_pos.x - hook_pos.x;
-                    let distance_to_surface_y = line_start_pos.y - visual_surface_y;
-                    
-                    let node_near_pole = Vec3::new(
-                        hook_pos.x + 0.9 * distance_to_hook_x, 
-                        visual_surface_y + 0.3 * distance_to_surface_y,
-                        0.0
-                    );
-                    let node_near_surface = Vec3::new(
-                        hook_pos.x + 0.4 * distance_to_hook_x, 
-                        visual_surface_y + 0.1 * distance_to_surface_y,
-                        0.0
-                    );
-                    let node_at_surface = Vec3::new(hook_pos.x, visual_surface_y, 0.0);
-                    let points = [[
-                        line_start_pos, 
-                        node_near_pole,
-                        node_near_surface,
-                        node_at_surface,
-                        ]];
+                        let distance_to_hook_x = line_start_pos.x - CAST_TARGET_POS.x;
+                        let distance_to_surface_y = line_start_pos.y - visual_surface_y;
+                        
+                        let node_near_pole = Vec3::new(
+                            CAST_TARGET_POS.x + 0.9 * distance_to_hook_x, 
+                            visual_surface_y + 0.3 * distance_to_surface_y,
+                            0.0
+                        );
+                        let node_near_surface = Vec3::new(
+                            CAST_TARGET_POS.x + 0.4 * distance_to_hook_x, 
+                            visual_surface_y + 0.1 * distance_to_surface_y,
+                            0.0
+                        );
+                        let node_at_surface = Vec3::new(CAST_TARGET_POS.x, visual_surface_y, 0.0);
+                        let points = [[
+                            line_start_pos, 
+                            node_near_pole,
+                            node_near_surface,
+                            node_at_surface,
+                            ]];
                         let bezier = Bezier::new(points);
                         gizmos.linestrip(bezier.to_curve().iter_positions(50), LINE_COLOR);
-                        gizmos.line(node_at_surface, Vec3::new(hook_pos.x, hook_pos.y, 0.0), LINE_COLOR);
+                        gizmos.line(node_at_surface, Vec3::new(line_target.x, line_target.y, 0.0), LINE_COLOR);
                     },
                     (false, false) => 
-                    gizmos.line(line_start_pos, hook_pos, LINE_COLOR)
+                        gizmos.line(line_start_pos, line_target, LINE_COLOR)
                 };
             }
         }

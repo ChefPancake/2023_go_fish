@@ -48,6 +48,10 @@ pub struct FishMovement {
     pub vel_to_apply: f32
 }
 
+#[derive(Component)]
+pub struct FishMouth {
+    pub mouth_size: f32
+}
 
 #[derive(Component)]
 pub struct FishBoundaries {
@@ -71,13 +75,7 @@ pub struct FishAnimation {
 }
 
 #[derive(Component)]
-pub struct FishMouthPosition {
-    pub offset_x: f32,
-    pub offset_y: f32,
-}
-
-#[derive(Component)]
-pub struct FishSize {
+pub struct Fish {
     pub size: usize
 }
 
@@ -97,7 +95,7 @@ pub struct ReturningToWater {
 
 fn reset_fish(
     mut completed_events: EventReader<ResetLevel>,
-    fish_query: Query<Entity, With<FishSize>>,
+    fish_query: Query<Entity, With<Fish>>,
     images: Res<ImageHandles>,
     mut commands: Commands,
 ) {
@@ -131,6 +129,7 @@ fn add_fish(
         let fish_half_width = (fish_size - 1) as f32 * 20.0 + 30.0;
         let pos_x = rand::random::<f32>() * box_width - (box_width / 2.0) + WATER_POS.x;
         let pos_y = WATER_POS.y - (box_height - height_offset) / 2.0 - height_offset / 2.0 + lane_height * pos_index as f32 + rng.gen::<f32>() * lane_height * 0.8;
+        let (mouth_pos, mouth_size) = FISH_MOUTH_POSITIONS_AND_SIZES[fish_size - 1];
         commands.spawn((
             SpriteSheetBundle {
                 texture_atlas: fish_atlas_handle.clone(),
@@ -142,7 +141,6 @@ fn add_fish(
                         -(fish_size as f32))),
                 ..default()
             },
-            build_fish_mouth_position(fish_size),
             FishMovement {
                 next_move_time: build_fish_movement_timer(&mut rng),
                 vel_to_apply: FISH_VELOCITY
@@ -162,7 +160,7 @@ fn add_fish(
             FishLanePos {
                 pos_y
             },
-            FishSize {
+            Fish {
                 size: fish_size,
             },
             Velocity {
@@ -171,7 +169,12 @@ fn add_fish(
                 drag_x: WATER_DRAG_X,
                 drag_y: WATER_DRAG_Y
             }
-        ));
+        )).with_children(|parent| {
+            parent.spawn((
+                SpatialBundle::from_transform(Transform::from_translation(mouth_pos.extend(0.0))),
+                FishMouth { mouth_size }
+            ));
+        });
     }
 }
 
@@ -180,14 +183,6 @@ fn build_fish_movement_timer(rng: &mut ThreadRng) -> Timer {
     let mut timer = Timer::from_seconds(rng.gen::<f32>() * 6.0 + 3.0, TimerMode::Repeating);
     timer.tick(Duration::from_secs_f32(rng.gen::<f32>() * 9.0));
     timer
-}
-
-fn build_fish_mouth_position(fish_size: usize) -> FishMouthPosition {
-    let fish_half_width = (fish_size - 1) as f32 * 20.0 + 30.0;
-    FishMouthPosition {
-        offset_x: fish_half_width,
-        offset_y: 20.0
-    }
 }
 
 fn apply_fish_movement(
@@ -341,11 +336,11 @@ fn interpolate_returning_to_water_arcs(
 fn handle_fish_returned_to_water(
     mut on_returned: EventReader<FishReturnedToWater>,
     images: Res<ImageHandles>,
-    fish_query: Query<(Entity, &FishSize)>,
+    fish_query: Query<Entity, With<Fish>>,
     mut commands: Commands,
 ) {
     for event in on_returned.iter() {
-        for (fish_entity, fish_size) in &fish_query {
+        for fish_entity in &fish_query {
             if fish_entity == event.fish_entity {   
                 let mut rng = rand::thread_rng();
                 commands.entity(event.fish_entity).remove::<(ReturningToWater, Handle<TextureAtlas>)>();
@@ -360,7 +355,6 @@ fn handle_fish_returned_to_water(
                         next_move_time: build_fish_movement_timer(&mut rng),
                         vel_to_apply: FISH_VELOCITY
                     },
-                    build_fish_mouth_position(fish_size.size),
                     images.fish_atlas_handle.as_ref().expect("Images should be loaded").clone()
                 ));
             }
