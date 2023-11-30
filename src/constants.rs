@@ -1,6 +1,10 @@
 use bevy::{math::{Vec2, Vec3}, render::color::Color};
 
-pub const BACKGROUND_COLOR: Color = Color::rgb(0.1, 0.1, 0.1);
+pub fn background_color() -> Color {
+    Color::hex(BACKGROUND_COLOR).expect("failed to parse as hex")
+}
+pub const BACKGROUND_COLOR: &str = "C9D1C4";
+pub const BACKGROUND_SIZE: Vec2 = Vec2::new(2732.0, 2048.0);
 pub const WATER_SIZE: Vec2 = Vec2::new(1450.0, 1200.0);
 pub const WATER_POS: Vec2 = Vec2::new(377.0, -250.0);
 pub const GRAVITY: f32 = 6000.0;
@@ -11,7 +15,6 @@ pub const BEAR_POS: Vec2 = Vec2::new(-520.0, 540.0);
 pub const FISH_STACK_HEIGHT: f32 = 15.0;
 pub const STACK_POS: Vec3 = Vec3::new(-1000.0, 435.0, -1.0);
 pub const FISH_PER_LEVEL: usize = 10;
-pub const WINDOW_SIZE: Vec2 = Vec2::new(1100.0, 800.0);
 pub const BITE_DISTANCE: f32 = 30.0;
 pub const FISH_VELOCITY: f32 = 500.0;
 pub const CRITICAL_TIME: f32 = 0.07;
@@ -22,7 +25,7 @@ pub const FISH_ATLAS_SIZES: [usize; 10] = [
     7,  2,
     6,  1,
     ];
-pub const LEVEL_LENGTH_S: f32 = 20.0; //75.0;
+pub const LEVEL_LENGTH_S: f32 = 75.0;
 pub const SNAIL_START_POS: Vec2 = Vec2::new(-80.0, -850.0);
 pub const SNAIL_END_POS: Vec2 = Vec2::new(875.0, SNAIL_START_POS.y);
 pub const SNAIL_SPEED: f32 = (SNAIL_END_POS.x - SNAIL_START_POS.x) / LEVEL_LENGTH_S;

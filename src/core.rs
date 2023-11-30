@@ -7,7 +7,6 @@ impl Plugin for CorePlugin {
         app
         .add_event::<ResetLevel>()
         .insert_resource(ImageHandles::default())
-        .insert_resource(ClearColor(BACKGROUND_COLOR))
         .add_systems(PreStartup, (
             load_images,
         ))
