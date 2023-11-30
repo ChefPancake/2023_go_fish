@@ -174,7 +174,6 @@ fn handle_fish_landed(
                 stack_pos.translation.y 
                 + calculate_stack_height(&stack.fish) 
                 - FISH_STACK_SIZES[event.fish_size - 1];
-            println!("expected pos_y: {}, actual pos_y: {}", expected_top_of_stack, event.position.y);
             if event.position.y > expected_top_of_stack {
                 commands.entity(event.entity).insert(FallingInStack { 
                     vel_y: 0.0,
@@ -331,7 +330,8 @@ fn calculate_return_path(
     let water_entrance_vel_y = water_drag_y * time_from_water_to_lane;
     let time_from_apex_to_water = water_entrance_vel_y / gravity_y;
     let apex_pos_y = water_y + time_from_apex_to_water * time_from_apex_to_water * gravity_y / 2.0;
-    debug_assert!((apex_pos_y - start_y) > 0.0);
+    println!("apex_pos_y: {}, start_y: {}", apex_pos_y, start_y);
+    debug_assert!(apex_pos_y > start_y);
     let time_to_apex = (2.0 / gravity_y * (apex_pos_y - start_y)).sqrt();
 
     let total_time = 

@@ -8,7 +8,7 @@ pub const BACKGROUND_SIZE: Vec2 = Vec2::new(2732.0, 2048.0);
 pub const WATER_SIZE: Vec2 = Vec2::new(1450.0, 1200.0);
 pub const WATER_POS: Vec2 = Vec2::new(377.0, -250.0);
 pub const GRAVITY: f32 = 6000.0;
-pub const WATER_DRAG_Y: f32 = 4000.0;
+pub const WATER_DRAG_Y: f32 = 10000.0;
 pub const WATER_DRAG_X: f32 = 50.0;
 pub const CAST_TARGET_POS: Vec2 = Vec2::new(300.0, 220.0);
 pub const BEAR_POS: Vec2 = Vec2::new(-520.0, 540.0);
@@ -44,8 +44,8 @@ pub const FISH_STACK_SIZES: [f32; 10] = [
     30.0,
     35.0,
     35.0,
+    35.0,
     50.0,
-    55.0,
 ];
 pub const LEVEL_LENGTH_S: f32 = 100.0;
 pub const SNAIL_START_POS: Vec2 = Vec2::new(-80.0, -850.0);
