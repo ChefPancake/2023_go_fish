@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use crate::constants::*;
+use crate::{constants::*, snail::SnailReachedEnd};
 
 pub struct CorePlugin;
 impl Plugin for CorePlugin {
@@ -14,6 +14,13 @@ impl Plugin for CorePlugin {
             add_camera,
             add_bg,
             add_water,
+        ))
+        .add_systems(Update, (
+            wait_to_reset,
+        ))
+        .add_systems(PostUpdate, (
+            handle_loss,
+            handle_win,
         ));
     }
 }
@@ -30,11 +37,18 @@ pub struct ImageHandles {
     pub stack_handle: Option<Handle<Image>>,
     pub water_handle: Option<Handle<Image>>,
     pub misc_handle: Option<Handle<Image>>,
+    pub win_bubble_handle: Option<Handle<Image>>,
+    pub lose_bubble_handle: Option<Handle<Image>>,
 
     pub bear_atlas_handle: Option<Handle<TextureAtlas>>,
     pub fish_atlas_handle: Option<Handle<TextureAtlas>>,
     pub stack_atlas_handle: Option<Handle<TextureAtlas>>,
     pub misc_atlas_handle: Option<Handle<TextureAtlas>>
+}
+
+#[derive(Component)]
+pub struct PopupTimer {
+    pub timer: Timer
 }
 
 fn load_images(
@@ -97,6 +111,9 @@ fn load_images(
     let misc_atlas_handle = atlases.add(misc_atlas);
     images.misc_handle = Some(misc_handle);
     images.misc_atlas_handle = Some(misc_atlas_handle);
+
+    images.win_bubble_handle = Some(asset_server.load("win_bubble.png"));
+    images.lose_bubble_handle = Some(asset_server.load("loss_bubble.png"));
 }
 
 fn add_camera(mut commands: Commands) {
@@ -111,7 +128,8 @@ fn add_bg(
     commands.spawn(
         SpriteBundle {
             texture: image_handle.clone(),
-            transform: Transform::from_translation(Vec3::new(0.0, 0.0, -1000.0)),
+            transform: 
+                Transform::from_translation(Vec3::new(0.0, 0.0, -1000.0)),
             ..default()
         }
     );
@@ -130,4 +148,48 @@ fn add_water(
             ..default()
         }
     );
+}
+
+fn handle_loss(
+    mut on_snail_end: EventReader<SnailReachedEnd>,
+    images: Res<ImageHandles>,
+    mut commands: Commands
+) {
+    if !on_snail_end.is_empty() {
+        on_snail_end.clear();
+        println!("GAME OVER");
+        commands.spawn((
+            SpriteBundle {
+                texture: images.lose_bubble_handle.as_ref().expect("images should be loaded").clone(),
+                transform: Transform::from_translation(Vec3::new(0.0, 0.0, 100.0))
+                    .with_scale(Vec3::ONE * 2.0),
+                ..default()
+            },
+            PopupTimer {
+                timer: Timer::from_seconds(0.7, TimerMode::Once)
+            }
+        ));
+    }
+}
+
+fn wait_to_reset(
+    mut popup_query: Query<(Entity, &mut PopupTimer)>,
+    time: Res<Time>,
+    input: Res<Input<KeyCode>>,
+    mut commands: Commands,
+    mut on_reset: EventWriter<ResetLevel>
+) {
+    for (entity, mut timer) in &mut popup_query {
+        timer.timer.tick(time.delta());
+        if timer.timer.finished() && input.pressed(KeyCode::Space) {
+            commands.entity(entity).despawn();
+            on_reset.send_default();
+        }
+    }
+    //with either bubble up, after timer X has expired
+    //when player hits Space, reset the game
+}
+
+fn handle_win() {
+
 }

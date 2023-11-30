@@ -24,7 +24,8 @@ impl Plugin for BearPlugin {
             handle_bear_on_cast,
             handle_bear_on_catch,
             handle_bear_on_fish_landed,
-            handle_bear_on_hooked
+            handle_bear_on_hooked,
+            handle_bear_on_reset,
         ));
     }
 }
@@ -367,21 +368,24 @@ fn update_fishing_line(
 
 fn draw_fishing_line(
     hook_query: Query<(&Transform, Option<&WaitingToBeCast>, Option<&HookInWater>), With<Hook>>,
+    popup_query: Query<(), With<PopupTimer>>,
     line_start_query: Query<&GlobalTransform, With<LineStartPoint>>,
     mut gizmos: Gizmos
 ) {
     const LINE_COLOR: Color = Color::GRAY;
-    if let Ok(line_start_pos) = line_start_query.get_single() {
-        let line_start_pos = line_start_pos.translation();
-        if let Ok((hook_pos, is_waiting, is_in_water)) = hook_query.get_single() {
-            const HOOK_OFFSET: Vec3 = Vec3::new(0.0, 25.0, 0.0);
-            let hook_pos = hook_pos.translation + HOOK_OFFSET;
-            match (is_waiting.is_some(), is_in_water.is_some()) {
-                (true, _) =>
+    if popup_query.is_empty() {
+
+        if let Ok(line_start_pos) = line_start_query.get_single() {
+            let line_start_pos = line_start_pos.translation();
+            if let Ok((hook_pos, is_waiting, is_in_water)) = hook_query.get_single() {
+                const HOOK_OFFSET: Vec3 = Vec3::new(0.0, 25.0, 0.0);
+                let hook_pos = hook_pos.translation + HOOK_OFFSET;
+                match (is_waiting.is_some(), is_in_water.is_some()) {
+                    (true, _) =>
                     gizmos.line(line_start_pos, hook_pos, LINE_COLOR),
-                (_, true) => {        
-                    let visual_surface_y = WATER_POS.y + WATER_SIZE.y / 2.0 - 80.0;
-                    let distance_to_hook_x = line_start_pos.x - hook_pos.x;
+                    (_, true) => {        
+                        let visual_surface_y = WATER_POS.y + WATER_SIZE.y / 2.0 - 80.0;
+                        let distance_to_hook_x = line_start_pos.x - hook_pos.x;
                     let distance_to_surface_y = line_start_pos.y - visual_surface_y;
                     
                     let node_near_pole = Vec3::new(
@@ -401,17 +405,18 @@ fn draw_fishing_line(
                         node_near_surface,
                         node_at_surface,
                         ]];
-                    let bezier = Bezier::new(points);
-                    gizmos.linestrip(bezier.to_curve().iter_positions(50), LINE_COLOR);
-                    gizmos.line(node_at_surface, Vec3::new(hook_pos.x, hook_pos.y, 0.0), LINE_COLOR);
-                },
-                (false, false) => 
+                        let bezier = Bezier::new(points);
+                        gizmos.linestrip(bezier.to_curve().iter_positions(50), LINE_COLOR);
+                        gizmos.line(node_at_surface, Vec3::new(hook_pos.x, hook_pos.y, 0.0), LINE_COLOR);
+                    },
+                    (false, false) => 
                     gizmos.line(line_start_pos, hook_pos, LINE_COLOR)
-            };
+                };
+            }
         }
     }
 }
-
+    
 fn interpolate_pulse_over_timer(
     timer: &Timer,
     rate_multiplier: f32,
@@ -426,5 +431,20 @@ fn interpolate_pulse_over_timer(
         let stretch_x = stretch_sin * stretch_amount_x + 1.0;
         let stretch_y = stretch_sin * stretch_amount_y + 1.0;
         Vec3::new(stretch_x, stretch_y, 1.0)
+    }
+}
+
+fn handle_bear_on_reset(
+    mut on_reset: EventReader<ResetLevel>,
+    mut bear_query: Query<(Entity, &mut BearAnimations, &mut TextureAtlasSprite), With<Bear>>,
+    mut commands: Commands
+) {
+    if !on_reset.is_empty() {
+        on_reset.clear();
+        if let Ok((entity, mut animation, mut sprite)) = bear_query.get_single_mut() {
+            commands.entity(entity).remove::<BearCriticalFlash>();
+            *animation = BearAnimations::waiting();
+            sprite.index = BearSpriteStates::Casting.into();
+        }
     }
 }

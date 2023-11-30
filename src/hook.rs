@@ -1,6 +1,8 @@
 use bevy::prelude::*;
 use crate::constants::*;
 use crate::core::ImageHandles;
+use crate::core::PopupTimer;
+use crate::core::ResetLevel;
 use crate::fish::*;
 use crate::physics::*;
 
@@ -31,6 +33,7 @@ impl Plugin for HookPlugin {
             handle_hook_landed_in_water,
             handle_hook_caught_fish,
             handle_fish_caught,
+            handle_hook_level_reset,
         ));
     }
 }
@@ -103,18 +106,21 @@ fn catch_fish(
     time: Res<Time>,
     fish_query: Query<(Entity, &Hooked)>,
     hook_query: Query<Entity, (With<Hook>, With<NearFish>)>,
+    popup_query: Query<(), With<PopupTimer>>,
     mut on_catch: EventWriter<FishCaught>,
     mut on_critical: EventWriter<ReeledToSurface>
 ) {
-    if let Ok(hook_entity) = hook_query.get_single() {
-        if let Ok((fish_entity, hooked)) = fish_query.get_single() {
-            if input.just_pressed(KeyCode::Space) {
-                let react_time = time.elapsed_seconds() - hooked.hook_time_s;
-                let is_critical = react_time < CRITICAL_TIME;
-                on_catch.send(FishCaught { fish_entity, hook_entity, is_critical });
-                if react_time < CRITICAL_TIME {
-                    on_critical.send(ReeledToSurface { entity: fish_entity });
-                    on_critical.send(ReeledToSurface { entity: hook_entity });
+    if popup_query.is_empty() {
+        if let Ok(hook_entity) = hook_query.get_single() {
+            if let Ok((fish_entity, hooked)) = fish_query.get_single() {
+                if input.just_pressed(KeyCode::Space) {
+                    let react_time = time.elapsed_seconds() - hooked.hook_time_s;
+                    let is_critical = react_time < CRITICAL_TIME;
+                    on_catch.send(FishCaught { fish_entity, hook_entity, is_critical });
+                    if react_time < CRITICAL_TIME {
+                        on_critical.send(ReeledToSurface { entity: fish_entity });
+                        on_critical.send(ReeledToSurface { entity: hook_entity });
+                    }
                 }
             }
         }
@@ -172,13 +178,14 @@ fn turn_hook_pink(
 fn cast_hook(
     hook_query: Query<Entity, (With<Hook>, With<WaitingToBeCast>)>,
     line_start_query: Query<&GlobalTransform, With<LineStartPoint>>,
+    popup_query: Query<(), With<PopupTimer>>,
     input: Res<Input<KeyCode>>,
     mut on_cast: EventWriter<HookCast>,
     time: Res<Time>,
     mut commands: Commands
 ) {
     for entity in &hook_query {
-        if input.just_pressed(KeyCode::Space) {
+        if popup_query.is_empty() && input.just_pressed(KeyCode::Space) {
             on_cast.send(HookCast{ hook_entity: entity });
             commands.entity(entity).remove::<WaitingToBeCast>();
             if let Ok(line_start_pos) = line_start_query.get_single().map(|x| x.translation()) {
@@ -205,18 +212,22 @@ fn cast_hook(
 
 fn move_hook(
     mut query: Query<(&mut Transform, &Hook), (With<HookInWater>, Without<NearFish>)>,
+    popup_query: Query<(), With<PopupTimer>>,
     input: Res<Input<KeyCode>>,
     time: Res<Time>
 ) {
-    let up_pressed = input.pressed(KeyCode::W) || input.pressed(KeyCode::Up);
-    let down_pressed = input.pressed(KeyCode::S) || input.pressed(KeyCode::Down);
-    for (mut transform, hook) in &mut query {
-        let y_vel = (if up_pressed { 1.0 } else { 0.0 } + if down_pressed { -1.0 } else { 0.0 });
-        let y_del = y_vel * time.delta_seconds();
-        let new_y = transform.translation.y + y_del * hook.move_speed;
-        let water_top = WATER_POS.y + WATER_SIZE.y / 2.0 - 100.0;
-        let water_bottom = WATER_POS.y - WATER_SIZE.y / 2.0;
-        transform.translation.y = new_y.clamp(water_bottom, water_top);
+    if popup_query.is_empty() {
+
+        let up_pressed = input.pressed(KeyCode::W) || input.pressed(KeyCode::Up);
+        let down_pressed = input.pressed(KeyCode::S) || input.pressed(KeyCode::Down);
+        for (mut transform, hook) in &mut query {
+            let y_vel = (if up_pressed { 1.0 } else { 0.0 } + if down_pressed { -1.0 } else { 0.0 });
+            let y_del = y_vel * time.delta_seconds();
+            let new_y = transform.translation.y + y_del * hook.move_speed;
+            let water_top = WATER_POS.y + WATER_SIZE.y / 2.0 - 100.0;
+            let water_bottom = WATER_POS.y - WATER_SIZE.y / 2.0;
+            transform.translation.y = new_y.clamp(water_bottom, water_top);
+        }
     }
 }
 
@@ -365,6 +376,26 @@ fn handle_fish_caught(
         commands.entity(event.fish_entity).remove::<(Hooked, FishMovement, FishMouthPosition, Velocity)>();
         if !event.is_critical {
             commands.entity(event.fish_entity).insert(Reeling);
+        }
+    }
+}
+
+fn handle_hook_level_reset(
+    mut on_reset: EventReader<ResetLevel>,
+    mut hook_query: Query<Entity, With<Hook>>,
+    mut commands: Commands,
+) {
+    if !on_reset.is_empty() {
+        on_reset.clear();
+        if let Ok(hook_entity) = hook_query.get_single_mut() {
+            let mut commands = commands.entity(hook_entity);
+            commands.remove::<(
+                NearFish,
+                HookInWater,
+                CastingHook,
+                Reeling
+            )>();
+            commands.insert(WaitingToBeCast);
         }
     }
 }
