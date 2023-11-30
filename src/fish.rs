@@ -6,6 +6,7 @@ use rand::Rng;
 use rand::rngs::ThreadRng;
 
 use crate::constants::*;
+use crate::hook::HookedFish;
 use crate::physics::*;
 use crate::core::*;
 
@@ -28,6 +29,7 @@ impl Plugin for FishPlugin {
         ))
         .add_systems(PostUpdate, (
             handle_fish_returned_to_water,
+            handle_fish_hooked,
             reset_fish
         ));
     }
@@ -357,6 +359,21 @@ fn handle_fish_returned_to_water(
                     },
                     images.fish_atlas_handle.as_ref().expect("Images should be loaded").clone()
                 ));
+            }
+        }
+    }
+}
+
+fn handle_fish_hooked(
+    mut on_hooked: EventReader<HookedFish>,
+    mut fish_query: Query<(Entity, &mut Transform), With<Fish>>
+) {
+    for event in on_hooked.iter() {
+        for (entity, mut transform) in &mut fish_query {
+            if entity == event.fish_entity {
+                transform.scale.x = if transform.scale.x > 0.0 { 1.0 } else { -1.0 };
+                transform.scale.y = if transform.scale.y > 0.0 { 1.0 } else { -1.0 };
+                break;
             }
         }
     }
