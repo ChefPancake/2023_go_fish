@@ -14,7 +14,7 @@ pub const CAST_TARGET_POS: Vec2 = Vec2::new(300.0, 220.0);
 pub const BEAR_POS: Vec2 = Vec2::new(-520.0, 540.0);
 pub const FISH_STACK_HEIGHT: f32 = 15.0;
 pub const STACK_POS: Vec3 = Vec3::new(-1000.0, 435.0, -1.0);
-pub const FISH_PER_LEVEL: usize = 10;
+pub const FISH_PER_LEVEL: usize = 1;
 pub const BITE_DISTANCE: f32 = 30.0;
 pub const FISH_VELOCITY: f32 = 500.0;
 pub const CRITICAL_TIME: f32 = 0.07;
@@ -25,7 +25,7 @@ pub const FISH_ATLAS_SIZES: [usize; 10] = [
     7,  2,
     6,  1,
     ];
-pub const LEVEL_LENGTH_S: f32 = 5.0;
+pub const LEVEL_LENGTH_S: f32 = 10.0;
 pub const SNAIL_START_POS: Vec2 = Vec2::new(-80.0, -850.0);
 pub const SNAIL_END_POS: Vec2 = Vec2::new(875.0, SNAIL_START_POS.y);
 pub const SNAIL_SPEED: f32 = (SNAIL_END_POS.x - SNAIL_START_POS.x) / LEVEL_LENGTH_S;

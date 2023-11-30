@@ -1,14 +1,17 @@
-use bevy::prelude::*;
-use crate::{constants::*, snail::SnailReachedEnd};
+use bevy::{prelude::*, sprite::Anchor};
+use crate::{constants::*, snail::{SnailReachedEnd, SnailStarted}, catch_stack::StackCompleted};
 
 pub struct CorePlugin;
 impl Plugin for CorePlugin {
     fn build(&self, app: &mut bevy::prelude::App) {
         app
         .add_event::<ResetLevel>()
+        .insert_resource(GameTimer::default())
         .insert_resource(ImageHandles::default())
+        .insert_resource(FontHandles::default())
         .add_systems(PreStartup, (
             load_images,
+            load_fonts
         ))
         .add_systems(Startup, (
             add_camera,
@@ -17,8 +20,10 @@ impl Plugin for CorePlugin {
         ))
         .add_systems(Update, (
             wait_to_reset,
+            update_game_timer,
         ))
         .add_systems(PostUpdate, (
+            handle_snail_start,
             handle_loss,
             handle_win,
         ));
@@ -44,6 +49,17 @@ pub struct ImageHandles {
     pub fish_atlas_handle: Option<Handle<TextureAtlas>>,
     pub stack_atlas_handle: Option<Handle<TextureAtlas>>,
     pub misc_atlas_handle: Option<Handle<TextureAtlas>>
+}
+
+#[derive(Resource, Default)]
+pub struct FontHandles {
+    pub timer_font_handle: Option<Handle<Font>>
+}
+
+#[derive(Resource, Default)]
+pub struct GameTimer{
+    pub running: bool,
+    pub total_time_s: f32
 }
 
 #[derive(Component)]
@@ -116,6 +132,13 @@ fn load_images(
     images.lose_bubble_handle = Some(asset_server.load("loss_bubble.png"));
 }
 
+fn load_fonts(
+    mut fonts: ResMut<FontHandles>,
+    asset_server: Res<AssetServer>
+) {
+    fonts.timer_font_handle = Some(asset_server.load("timer_font.ttf"));
+}
+
 fn add_camera(mut commands: Commands) {
     commands.spawn(Camera2dBundle::default());
 }
@@ -174,6 +197,7 @@ fn handle_loss(
 
 fn wait_to_reset(
     mut popup_query: Query<(Entity, &mut PopupTimer)>,
+    text_query: Query<Entity, With<Text>>,
     time: Res<Time>,
     input: Res<Input<KeyCode>>,
     mut commands: Commands,
@@ -184,12 +208,65 @@ fn wait_to_reset(
         if timer.timer.finished() && input.pressed(KeyCode::Space) {
             commands.entity(entity).despawn();
             on_reset.send_default();
+            if let Ok(text) = text_query.get_single() {
+                commands.entity(text).despawn();
+            }
         }
     }
-    //with either bubble up, after timer X has expired
-    //when player hits Space, reset the game
 }
 
-fn handle_win() {
+fn handle_win(
+    mut on_stack_completed: EventReader<StackCompleted>,
+    mut game_timer: ResMut<GameTimer>,
+    images: Res<ImageHandles>,
+    fonts: Res<FontHandles>,
+    mut commands: Commands
+) {
+    if !on_stack_completed.is_empty() {
+        on_stack_completed.clear();
+        println!("YOU WIN");
+        game_timer.running = false;
+        commands.spawn((
+            SpriteBundle {
+                texture: images.win_bubble_handle.as_ref().expect("Images should be loaded").clone(),
+                transform: Transform::from_translation(Vec3::new(0.0, 0.0, 100.0))
+                    .with_scale(Vec3::ONE * 2.0),
+                ..default()
+            },
+            PopupTimer {
+                timer: Timer::from_seconds(1.0, TimerMode::Once)
+            }
+        ));
+        let time_string = format!("{:.1} s", game_timer.total_time_s);
+        commands.spawn(Text2dBundle {
+            text: Text::from_section(time_string, TextStyle {
+                font: fonts.timer_font_handle.as_ref().expect("Fonts should be loaded").clone(),
+                font_size: 160.00,
+                ..default()
+            }),
+            text_anchor: Anchor::CenterLeft,
+            transform: Transform::from_translation(Vec3::new(20.0, -230.0, 101.0)),
+            ..default()
+        });
+    }
+} 
 
+fn handle_snail_start(
+    mut on_snail_start: EventReader<SnailStarted>,
+    mut game_time: ResMut<GameTimer>
+) {
+    if !on_snail_start.is_empty() {
+        on_snail_start.clear();
+        game_time.running = true;
+        game_time.total_time_s = 0.0;
+    }
+}
+
+fn update_game_timer(
+    mut game_time: ResMut<GameTimer>,
+    time: Res<Time>
+) {
+    if game_time.running {
+        game_time.total_time_s += time.delta_seconds();
+    }
 }

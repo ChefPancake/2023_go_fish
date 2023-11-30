@@ -11,6 +11,7 @@ impl Plugin for CatchStackPlugin {
         app
         .add_event::<FishLandedInStack>()
         .add_event::<FishKnockedOutOfStack>()
+        .add_event::<StackCompleted>()
         .add_systems(Startup, 
             add_catch_stack)
         .add_systems(Update, 
@@ -52,6 +53,9 @@ pub struct FishLandedInStack {
     pub position: Vec2,
     pub return_lane_y: f32
 }
+
+#[derive(Event, Default)]
+pub struct StackCompleted;
 
 fn add_catch_stack(
     mut commands: Commands
@@ -187,8 +191,9 @@ fn handle_fish_knocked_out_of_stack(
 fn handle_fish_landed_in_stack(
     mut on_land: EventReader<FishLandedInStack>,
     mut catch_stack_query: Query<(&Transform, &mut CatchStack)>,
+    popup_query: Query<(), With<PopupTimer>>,
     mut on_fish_kod: EventWriter<FishKnockedOutOfStack>,
-    mut on_complete: EventWriter<ResetLevel>,
+    mut on_complete: EventWriter<StackCompleted>,
 ) {
     for event in on_land.iter() {
         let (catch_stack_pos, mut catch_stack) = catch_stack_query.single_mut();
@@ -225,7 +230,7 @@ fn handle_fish_landed_in_stack(
         }
         catch_stack.fish[first_empty_slot] = Some((event.entity, event.fish_size, event.return_lane_y));
 
-        if catch_stack.total_fish == FISH_PER_LEVEL {
+        if popup_query.is_empty() && catch_stack.total_fish == FISH_PER_LEVEL {
             on_complete.send_default();
         }
     }
