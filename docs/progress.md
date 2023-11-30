@@ -81,7 +81,7 @@
   - [x] set fish scale to 1 on catch
   - [x] make it easier to catch (and harder to play)
   - [x] possibly on catch - hide hook and draw line from surface to fish mouth (catch point centroid)
-- [ ] after squidging, drop top fish to new position
+- [x] after squidging, drop top fish to new position
 - [ ] add sounds for losing and winning
 - [ ] load before running
   - find a way to wait until all assets have loaded before playing

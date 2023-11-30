@@ -14,14 +14,16 @@ impl Plugin for CatchStackPlugin {
         .add_event::<StackCompleted>()
         .add_systems(Startup, 
             add_catch_stack)
-        .add_systems(Update, 
-            interpolate_flying_arc)
+        .add_systems(Update, (
+            interpolate_flying_arc,
+            update_falling_fish
+        ))
         .add_systems(PostUpdate,(
             reset_stack,
-            handle_fish_landed_in_stack,
             handle_fish_reeled_to_surface,
             handle_fish_knocked_out_of_stack,
-            handle_fish_landed,
+            handle_fish_landed_in_stack,
+            handle_fish_landed.after(handle_fish_landed_in_stack)
         ));
     }
 }
@@ -40,7 +42,13 @@ pub struct FlyingToStack {
 #[derive(Component, Default)]
 pub struct CatchStack {
     pub total_fish: usize,
-    pub fish: [Option<(Entity, usize, f32)>; FISH_PER_LEVEL]
+    pub fish: [Option<StackedFish>; FISH_PER_LEVEL]
+}
+
+#[derive(Copy, Clone)]
+pub struct StackedFish {
+    entity: Entity,
+    fish_size: usize
 }
 
 #[derive(Component)]
@@ -52,6 +60,12 @@ pub struct FishLandedInStack {
     pub fish_size: usize,
     pub position: Vec2,
     pub return_lane_y: f32
+}
+
+#[derive(Component)]
+pub struct FallingInStack {
+    pub vel_y: f32,
+    pub final_y: f32
 }
 
 #[derive(Event, Default)]
@@ -93,9 +107,10 @@ fn handle_fish_reeled_to_surface(
         for (fish_entity, fish_pos) in &fish_query {
             if fish_entity == event.entity {
                 let catch_stack_pos = catch_stack_pos.translation;
+                let target_y = catch_stack_pos.y + calculate_stack_height(&catch_stack.fish);
                 let catch_stack_pos = Vec3::new(
                     catch_stack_pos.x, 
-                    catch_stack_pos.y + (catch_stack.total_fish as f32) * FISH_STACK_HEIGHT,
+                    target_y,
                     catch_stack_pos.z);
                 commands.entity(event.entity).remove::<Reeling>();
                 send_fish_to_stack(fish_pos.translation, catch_stack_pos, GRAVITY, time.elapsed_seconds(), &mut commands, event.entity);
@@ -143,6 +158,7 @@ fn interpolate_flying_arc(
 
 fn handle_fish_landed(
     mut on_land: EventReader<FishLandedInStack>,
+    stack_query: Query<(&Transform, &CatchStack)>,
     images: Res<ImageHandles>,
     mut commands: Commands
 ) {
@@ -152,6 +168,49 @@ fn handle_fish_landed(
             images.stack_atlas_handle.as_ref().expect("Images should be loaded").clone(),
             InCatchStack
         ));
+        
+        if let Ok((stack_pos, stack)) = stack_query.get_single() {
+            let expected_top_of_stack = 
+                stack_pos.translation.y 
+                + calculate_stack_height(&stack.fish) 
+                - FISH_STACK_SIZES[event.fish_size - 1];
+            println!("expected pos_y: {}, actual pos_y: {}", expected_top_of_stack, event.position.y);
+            if event.position.y > expected_top_of_stack {
+                commands.entity(event.entity).insert(FallingInStack { 
+                    vel_y: 0.0,
+                    final_y: expected_top_of_stack 
+                });
+            }
+        }
+    }
+}
+
+fn calculate_stack_height(fish: &[Option<StackedFish>]) -> f32 {
+    let mut height = 0.0;
+    for entries in fish.iter().filter_map(|x| *x) {
+        height += FISH_STACK_SIZES[entries.fish_size - 1];
+    }
+    height
+}
+
+fn update_falling_fish(
+    mut falling_fish: Query<(Entity, &mut Transform, &mut FallingInStack)>,
+    time: Res<Time>,
+    mut commands: Commands
+) {
+    for (entity, mut pos, mut falling) in &mut falling_fish {
+        let new_vel_y = falling.vel_y - time.delta_seconds() * GRAVITY;
+        let new_y = 
+            pos.translation.y 
+            + falling.vel_y * time.delta_seconds()
+            + GRAVITY / 2.0 * time.delta_seconds() * time.delta_seconds();
+        if new_y < falling.final_y {
+            pos.translation.y = falling.final_y;
+            commands.entity(entity).remove::<FallingInStack>();
+        } else {
+            pos.translation.y = new_y;
+            falling.vel_y = new_vel_y;
+        }
     }
 }
 
@@ -198,12 +257,14 @@ fn handle_fish_landed_in_stack(
     for event in on_land.iter() {
         let (catch_stack_pos, mut catch_stack) = catch_stack_query.single_mut();
         let mut indexes_to_remove = Vec::<usize>::new();
+        let mut stack_height = 0.0;
         for (item_index, item) in catch_stack.fish.iter().enumerate() {
-            if let Some((fish_entity, size, _)) = item.as_ref() {
-                if *size < event.fish_size {
-                    let start_pos_y = catch_stack_pos.translation.y + item_index as f32 * FISH_STACK_HEIGHT;
+            if let Some(fish) = item.as_ref() {
+                stack_height += FISH_STACK_SIZES[fish.fish_size - 1];
+                if fish.fish_size < event.fish_size {
+                    let start_pos_y = catch_stack_pos.translation.y + stack_height;
                     on_fish_kod.send(FishKnockedOutOfStack { 
-                        fish_entity: *fish_entity,
+                        fish_entity: fish.entity,
                         stack_position: Vec2::new(catch_stack_pos.translation.x, start_pos_y) 
                     });
                     indexes_to_remove.push(item_index);
@@ -228,8 +289,11 @@ fn handle_fish_landed_in_stack(
                 first_empty_slot = i + 1;
             }
         }
-        catch_stack.fish[first_empty_slot] = Some((event.entity, event.fish_size, event.return_lane_y));
-
+        catch_stack.fish[first_empty_slot] = Some(
+            StackedFish { 
+                entity: event.entity, 
+                fish_size: event.fish_size
+        });
         if popup_query.is_empty() && catch_stack.total_fish == FISH_PER_LEVEL {
             on_complete.send_default();
         }
@@ -240,7 +304,6 @@ fn calculate_return_position(
     lane_y: f32,
 ) -> Vec2 {
     const WATER_SHRINK: f32 = 0.8; //factor to shrink the landing zone by, centered at WATER_POS
-
     const MIN_LEFT_X: f32 = WATER_POS.x - WATER_SIZE.x / 2.0 * WATER_SHRINK;
     const WATER_TOP_Y: f32 = WATER_POS.y + WATER_SIZE.y / 2.0;
     let del_y = WATER_TOP_Y - lane_y ;
@@ -260,6 +323,7 @@ fn calculate_return_path(
 ) -> ReturningToWater {
     debug_assert_ne!(0.0, gravity_y);
     debug_assert_ne!(0.0, water_drag_y);
+    debug_assert!((water_y - end_y) > 0.0);
     //we need to hit the lane_y, so we need to know what the vel_y is at the water's surface, 
     //so then we can know how high it arcs and what vel we need to start with to hit that apex.
     //working backwards from the final position...
@@ -267,6 +331,7 @@ fn calculate_return_path(
     let water_entrance_vel_y = water_drag_y * time_from_water_to_lane;
     let time_from_apex_to_water = water_entrance_vel_y / gravity_y;
     let apex_pos_y = water_y + time_from_apex_to_water * time_from_apex_to_water * gravity_y / 2.0;
+    debug_assert!((apex_pos_y - start_y) > 0.0);
     let time_to_apex = (2.0 / gravity_y * (apex_pos_y - start_y)).sqrt();
 
     let total_time = 

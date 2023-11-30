@@ -12,7 +12,6 @@ pub const WATER_DRAG_Y: f32 = 4000.0;
 pub const WATER_DRAG_X: f32 = 50.0;
 pub const CAST_TARGET_POS: Vec2 = Vec2::new(300.0, 220.0);
 pub const BEAR_POS: Vec2 = Vec2::new(-520.0, 540.0);
-pub const FISH_STACK_HEIGHT: f32 = 15.0;
 pub const STACK_POS: Vec3 = Vec3::new(-1000.0, 435.0, -1.0);
 pub const FISH_PER_LEVEL: usize = 10;
 pub const FISH_VELOCITY: f32 = 500.0;
@@ -35,6 +34,18 @@ pub const FISH_MOUTH_POSITIONS_AND_SIZES: [(Vec2, f32); 10] = [
     (Vec2::new(150.0, 0.0), 40.0),
     (Vec2::new(150.0, 0.0), 50.0),
     (Vec2::new(200.0, 0.0), 45.0),
+];
+pub const FISH_STACK_SIZES: [f32; 10] = [
+    10.0,
+    15.0,
+    15.0,
+    20.0,
+    25.0,
+    30.0,
+    35.0,
+    35.0,
+    50.0,
+    55.0,
 ];
 pub const LEVEL_LENGTH_S: f32 = 100.0;
 pub const SNAIL_START_POS: Vec2 = Vec2::new(-80.0, -850.0);
