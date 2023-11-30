@@ -5,7 +5,7 @@
   - [x] stretch and squash based on movement
   - [x] randomized burst lengths
   - [x] spawn fish in lanes w slight variation
-- [ ] catch fish
+- [x] catch fish
   - [x] create hook, player moves it with wasd
   - [x] on spacebar, remove one fish under hook
     - [x] adjust catch point to be at mouth
@@ -15,7 +15,6 @@
   - [x] pull fish up to water surface when catching, then arc in
   - [x] On critical catch, arc fish immediately into stack
   - [x] sit it on a stack
-  - [ ] animate it flopping when caught
 - [x] Spawn multiple sizes of fish
   - [x] Larger fish in the background
   - [x] randomize placement
@@ -29,20 +28,15 @@
     - Spawn one of each
   - [x] Stacked Fish
     - change sprite to the top profile
-- [ ] add snail
-  - circle for now
-  - [ ] moves across bottom between rocks
-  - [ ] game ends when he travels across
+- [x] add snail
+  - [x] moves across bottom between rocks
+  - [x] game ends when he travels across
+    - snail sends event when he reaches the end
 - [x] squidge out smaller caught fish if a larger is caught
   - [x] remove from stack if a larger fish is added
   - [x] arc them out of the stack
   - [x] return them to their original pos.y
   - [x] tone down the vel_x
-- [ ] after squidging, drop top fish to new position
-- [ ] add x drag to water during return
-- [ ] add fish chasing
-  - when near and facing the hook, fish will chase it. 
-  - fish will stay within lane, leaving the lane will cause the fish to give up and return to original pos.y
 - [x] add casting
   - [x] hook starts out of water
   - [x] press space to cast
@@ -53,13 +47,11 @@
   - [x] tighten line when reeling
   - [~] when reeling, move fish.x slightly towards bear.x (towards centroid)
     - decided to not do this, don't want the fish to clip into the ground and don't want to reorient the fish just yet.
-- [ ] animate bear
+- [x] animate bear
   - [x] before casting, switch to cast frame
   - [x] when hook in air, switch to fishing frame
   - [x] when reeling, switch to reel frame
   - [x] critical catch
-    - [ ] hitstop
-      - freeze all fish: swimming, reeling, and flying
     - [x] alternate two critical frames N times
   - [x] when caught fish goes flying, switch to catch frame
   - [x] squish and stretch
@@ -71,21 +63,20 @@
     - [x] squish from feet
 - [x] reset level when last fish lands on stack and nothing is knocked out
 - [x] reorganize
-- [ ] refactor interpolation data/funcs
 - [x] audio
   - [x] music
     - [jummbox](https://jummbus.bitbucket.io)
   - [x] sound effects
+- [ ] animate fish flopping when caught
+- [ ] refactor interpolation data/funcs
+- [ ] hitstop
+  - freeze all fish: swimming, reeling, and flying
+- [ ] after squidging, drop top fish to new position
+- [ ] add x drag to water during return
+- [ ] add fish chasing
+  - when near and facing the hook, fish will chase it. 
+  - fish will stay within lane, leaving the lane will cause the fish to give up and return to original pos.y
 
-# TODO E:
-- Fix bear spot perspective
-- add stump
-- flatten/lower water
-- move stack spot away from edge
-- name game
-- need bear frames
-  - idle? maybe
-  - cast throw
 
 # Reorganization Notes
 Currently there is a heirarchy of plugins. From top to bottom, where the top knows about everything and the bottom doesn't know anything:
