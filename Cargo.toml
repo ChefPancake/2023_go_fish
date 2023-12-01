@@ -1,5 +1,5 @@
 [package]
-name = "gameoff_2023"
+name = "hook_line_stacker"
 version = "0.1.0"
 edition = "2021"
 
@@ -13,12 +13,7 @@ opt-level = 1
 [profile.dev.package."*"]
 opt-level = 3
 
-[target.x86_64-pc-windows-msvc.dependencies]
-bevy = { version = "0.11.3", features = ["dynamic_linking", "wav"] }
-bevy_ecs = "0.11.0"
-rand = "0.8.5"
-
-[target.wasm32-unknown-unknown.dependencies]
+[dependencies]
 bevy = { version = "0.11.3", features = ["wav"] }
 bevy_ecs = "0.11.0"
 rand = "0.8.5"

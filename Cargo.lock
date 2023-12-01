@@ -284,7 +284,6 @@ version = "0.11.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "91c6d3ec4f89e85294dc97334c5b271ddc301fdf67ac9bb994fe44d9273e6ed7"
 dependencies = [
- "bevy_dylib",
  "bevy_internal",
 ]
 
@@ -444,15 +443,6 @@ dependencies = [
  "bevy_time",
  "bevy_utils",
  "sysinfo",
-]
-
-[[package]]
-name = "bevy_dylib"
-version = "0.11.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "22ea11f830028e1c9d37f8bc88c5873f1c4c0346661209c2ba015f899c51863c"
-dependencies = [
- "bevy_internal",
 ]
 
 [[package]]
@@ -1568,15 +1558,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gameoff_2023"
-version = "0.1.0"
-dependencies = [
- "bevy",
- "bevy_ecs",
- "rand",
-]
-
-[[package]]
 name = "getrandom"
 version = "0.2.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1817,6 +1798,15 @@ name = "hexf-parse"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dfa686283ad6dd069f105e5ab091b04c62850d3e4cf5d67debad1933f55023df"
+
+[[package]]
+name = "hook_line_stacker"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+ "bevy_ecs",
+ "rand",
+]
 
 [[package]]
 name = "hound"
