@@ -11,7 +11,7 @@ impl Plugin for HSLWindowPlugin {
                 primary_window: Some(Window {
                     title: "GO FISH".to_string(),
                     fit_canvas_to_parent: true,
-                    resolution: WindowResolution::new(704.0, 527.0),
+                    resolution: WindowResolution::new(859.0, 643.0),
                     ..default()
                 }),
                 ..default()
