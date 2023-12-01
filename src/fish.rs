@@ -132,6 +132,7 @@ fn add_fish(
         let pos_x = rand::random::<f32>() * box_width - (box_width / 2.0) + WATER_POS.x;
         let pos_y = WATER_POS.y - (box_height - height_offset) / 2.0 - height_offset / 2.0 + lane_height * pos_index as f32 + rng.gen::<f32>() * lane_height * 0.8;
         let (mouth_pos, mouth_size) = FISH_MOUTH_POSITIONS_AND_SIZES[fish_size - 1];
+        let x_scale = if rng.gen::<bool>() { 1.0 } else { -1.0 };
         commands.spawn((
             SpriteSheetBundle {
                 texture_atlas: fish_atlas_handle.clone(),
@@ -140,12 +141,17 @@ fn add_fish(
                     Vec3::new(
                         pos_x, 
                         pos_y, 
-                        -(fish_size as f32))),
+                        -(fish_size as f32)))
+                    .with_scale(Vec3::new(
+                        x_scale,
+                        1.0,
+                        1.0
+                    )),
                 ..default()
             },
             FishMovement {
                 next_move_time: build_fish_movement_timer(&mut rng),
-                vel_to_apply: FISH_VELOCITY
+                vel_to_apply: FISH_VELOCITY * x_scale
             },
             FishBoundaries {
                 min_x: -WATER_SIZE.x / 2.0 + WATER_POS.x + fish_half_width,
@@ -166,7 +172,7 @@ fn add_fish(
                 size: fish_size,
             },
             Velocity {
-                x: 0.0,
+                x: ((FISH_VELOCITY / 2.0) + rng.gen::<f32>() * FISH_VELOCITY / 2.0) * x_scale,
                 y: 0.0,
                 drag_x: WATER_DRAG_X,
                 drag_y: WATER_DRAG_Y
