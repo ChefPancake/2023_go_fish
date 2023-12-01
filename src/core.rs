@@ -1,11 +1,12 @@
 use bevy::{prelude::*, sprite::Anchor};
-use crate::{constants::*, snail::{SnailReachedEnd, SnailStarted}, catch_stack::StackCompleted};
+use crate::{constants::*, snail::{SnailReachedEnd, SnailStarted}, catch_stack::StackCompleted, audio::MusicLoaded};
 
 pub struct CorePlugin;
 impl Plugin for CorePlugin {
     fn build(&self, app: &mut bevy::prelude::App) {
         app
         .add_event::<ResetLevel>()
+        .add_event::<MusicLoaded>()
         .insert_resource(GameTimer::default())
         .insert_resource(ImageHandles::default())
         .insert_resource(FontHandles::default())

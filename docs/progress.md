@@ -83,8 +83,9 @@
   - [x] possibly on catch - hide hook and draw line from surface to fish mouth (catch point centroid)
 - [x] after squidging, drop top fish to new position
 - [ ] add sounds for losing and winning
-- [ ] load before running
+- [x] load before running
   - find a way to wait until all assets have loaded before playing
+  - can't do this fully without a full version upgrade to bevy 0.12. Opted to just defer the music loading since it's the largest file and easiest to defer.
 - [ ] animate fish flopping when caught
 - [ ] hitstop
   - freeze all fish: swimming, reeling, and flying
