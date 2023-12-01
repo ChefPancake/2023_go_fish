@@ -330,7 +330,6 @@ fn calculate_return_path(
     let water_entrance_vel_y = water_drag_y * time_from_water_to_lane;
     let time_from_apex_to_water = water_entrance_vel_y / gravity_y;
     let apex_pos_y = water_y + time_from_apex_to_water * time_from_apex_to_water * gravity_y / 2.0;
-    println!("apex_pos_y: {}, start_y: {}", apex_pos_y, start_y);
     debug_assert!(apex_pos_y > start_y);
     let time_to_apex = (2.0 / gravity_y * (apex_pos_y - start_y)).sqrt();
 
